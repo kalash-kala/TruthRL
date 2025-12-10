@@ -16,7 +16,7 @@ TruthRL is a simple yet effective truthfulness-driven reinforcement learning (RL
 
 A model that answers fewer questions correctly while reliably abstaining when uncertain is far more trustworthy than a higher-accuracy model that frequently fabricates plausible but incorrect answers.
 <center>
-  <img width="1084" height="409" alt="image" src="https://github.com/user-attachments/assets/36438a85-eff2-4836-bd4e-8e2e23533320" />
+  <img width="1084" height="409" alt="image" src="https://github.com/facebookresearch/TruthRL/blob/main/TruthRL.png" />
 </center>
 
 In vanilla supervised fine-tuning (SFT) or RL, the model is optimized solely for accuracy, implicitly rewarding hallucinations over abstentions and thus always attempting to answer or guess, which ultimately compromises truthfulness. In contrast, TruthRL not only **rewards correct answers**, but explicitly **penalizes hallucinations**, and **treats abstentions neutrally**, thereby leading to greater truthfulness.
