@@ -26,7 +26,7 @@ export DISABLE_FLASH_ATTN=1
 
 export WANDB_PROJECT="TruthRL"
 
-DATA_DIR=/home/kalashkala/truthrl_data # refer to HF data repo: weizhepei/TruthRL-CRAG
+DATA_DIR=../truthrl_data # refer to HF data repo: weizhepei/TruthRL-CRAG
 
 N_GPUS=1
 ROLLOUT_TP_SIZE=1

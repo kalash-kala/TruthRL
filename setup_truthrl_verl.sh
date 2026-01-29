@@ -26,7 +26,8 @@ conda activate "${ENV_NAME}"
 echo ">>> Installing CUDA toolkit (nvidia/label/cuda-12.4.0::cuda-toolkit)..."
 conda install -n "${ENV_NAME}" -c nvidia/label/cuda-12.4.0 cuda-toolkit -y
 
-REPO_ROOT="/home/kalashkala/TruthRL"
+# REPO_ROOT is the directory where this script is located
+REPO_ROOT="$(dirname "${BASH_SOURCE[0]}")"
 echo ">>> Changing directory to training/verl under ${REPO_ROOT}..."
 cd "${REPO_ROOT}/training/verl"
 

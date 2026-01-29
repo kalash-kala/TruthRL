@@ -33,7 +33,7 @@ LR=1e-6
 KL_LOSS_COEF=0.001
 BSZ=64
 
-verl_workdir=TruthRL/training/verl
+verl_workdir="$(dirname "${BASH_SOURCE[0]}")/training/verl"
 train_files=$DATA_DIR/train.parquet
 val_files=$DATA_DIR/test.parquet
 

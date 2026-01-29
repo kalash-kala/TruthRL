@@ -23,7 +23,8 @@ fi
 echo ">>> Activating Conda environment '${ENV_NAME}'..."
 conda activate "${ENV_NAME}"
 
-REPO_ROOT="/home/kalashkala/TruthRL"
+# REPO_ROOT is the directory where this script is located
+REPO_ROOT="$(dirname "${BASH_SOURCE[0]}")"
 echo ">>> Changing directory to evaluation under ${REPO_ROOT}..."
 cd "${REPO_ROOT}/evaluation"
 
