@@ -14,8 +14,23 @@ from tqdm.auto import tqdm
 from openai import APIConnectionError, OpenAI, RateLimitError
 
 import datasets
+from datetime import datetime
 from model import InstructModel
 from prompts import IN_CONTEXT_EXAMPLES, INSTRUCTIONS, INSTRUCTIONS_REASONING, IN_CONTEXT_EXAMPLES_REASONING
+
+def log_reward_detail(data):
+    """Logs detailed reward information to a JSONL file."""
+    log_name = os.environ.get("TRUTHRL_LOG_NAME", "eval_default")
+    log_dir = os.path.join("/home/kalashkala/TruthRL/outputs/reward_logs", log_name)
+    os.makedirs(log_dir, exist_ok=True)
+    
+    log_file = os.path.join(log_dir, f"evaluation_detail_{os.getpid()}.jsonl")
+    data["timestamp"] = datetime.now().isoformat()
+    try:
+        with open(log_file, "a") as f:
+            f.write(json.dumps(data) + "\n")
+    except Exception as e:
+        print(f"Failed to write evaluation log: {e}")
 
 
 def normalize_answer(s):
@@ -86,7 +101,8 @@ def load_data_in_batches(data, batch_size, n_sample=None):
             "domain": [], 
             "question_type": [], 
             "static_or_dynamic": [],
-            "retrieved_chunks": []
+            "retrieved_chunks": [],
+            "out_of_knowledge": []
             }
 
     try:
@@ -100,7 +116,14 @@ def load_data_in_batches(data, batch_size, n_sample=None):
         for item in data:
             try:
                 for key in batch:
-                    batch[key].append(item[key])
+                    if key == "out_of_knowledge":
+                        # Extract from nested reward_model
+                        reward_model = item.get('reward_model', {})
+                        ground_truth = reward_model.get('ground_truth', {})
+                        ook = ground_truth.get('out_of_knowledge', False)
+                        batch[key].append(ook)
+                    else:
+                        batch[key].append(item[key])
 
                 if len(batch["query"]) == batch_size:
                     yield batch
@@ -116,7 +139,7 @@ def load_data_in_batches(data, batch_size, n_sample=None):
 
 def generate_predictions(dataset, participant_model, save_path=None, n_sample=None, top_p=0.9, temperature=0.6, n_answer=32, max_new_tokens=2048, max_seq_length=16384, is_rag=True):
 
-    ids, queries, query_times, prompt_lengths, ground_truths, alternative_answers, predictions, domains, question_types, static_or_dynamics, retrieved_chunks = [], [], [], [], [], [], [], [], [], [], []
+    ids, queries, query_times, prompt_lengths, ground_truths, alternative_answers, predictions, domains, question_types, static_or_dynamics, retrieved_chunks, ook_flags = [], [], [], [], [], [], [], [], [], [], [], []
     prompts = []
     batch_size = participant_model.get_batch_size()
 
@@ -136,6 +159,7 @@ def generate_predictions(dataset, participant_model, save_path=None, n_sample=No
         static_or_dynamics.extend(batch["static_or_dynamic"])
         predictions.extend(batch_predictions)
         retrieved_chunks.extend(batch["retrieved_chunks"])
+        ook_flags.extend(batch["out_of_knowledge"])
         
     max_prompt_length = max(prompt_lengths)
     print(f">>>>Max prompt length out of {len(prompt_lengths)} prompts: {max_prompt_length}")
@@ -145,7 +169,7 @@ def generate_predictions(dataset, participant_model, save_path=None, n_sample=No
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         print(f"Saving predictions to {save_path}")
         new_data = []
-        for id, query, query_time, prompt_length, ground_truth, alternative_answers, prompt, prediction, domain, question_type, static_or_dynamic, retrieved_chunks in zip(ids, queries, query_times, prompt_lengths, ground_truths, alternative_answers, prompts, predictions, domains, question_types, static_or_dynamics, retrieved_chunks):
+        for id, query, query_time, prompt_length, ground_truth, alternative_answers, prompt, prediction, domain, question_type, static_or_dynamic, retrieved_chunks, ook in zip(ids, queries, query_times, prompt_lengths, ground_truths, alternative_answers, prompts, predictions, domains, question_types, static_or_dynamics, retrieved_chunks, ook_flags):
             new_data.append({
                 "interaction_id": id,
                 "query": query,
@@ -159,7 +183,8 @@ def generate_predictions(dataset, participant_model, save_path=None, n_sample=No
                 "static_or_dynamic": static_or_dynamic,
                 "prompt": prompt,
                 "prompt_length": prompt_length,
-                "retrieved_chunks": retrieved_chunks
+                "retrieved_chunks": retrieved_chunks,
+                "out_of_knowledge": ook
             })
 
         print(f'>>> How many new data: {len(new_data)}')
@@ -167,11 +192,11 @@ def generate_predictions(dataset, participant_model, save_path=None, n_sample=No
             json.dump(new_data, f, indent=4)
         logger.info(f"Predictions saved to {save_path}")
     
-    return queries, ground_truths, alternative_answers, prompts, predictions
+    return queries, ground_truths, alternative_answers, prompts, predictions, ook_flags
 
 
 
-def evaluate_predictions(queries, ground_truths, alt_answers, predictions, evaluation_model_name, temperature=0, top_p=0.9, max_new_tokens=512, base_url="http://localhost:8000/v1"):
+def evaluate_predictions(queries, ground_truths, alt_answers, predictions, ook_flags, evaluation_model_name, temperature=0, top_p=0.9, max_new_tokens=512, base_url="http://localhost:8080/v1"):
     
     n_miss, n_correct, n_exact_match = 0, 0, 0
     n_no_boxed = 0
@@ -293,6 +318,28 @@ def evaluate_predictions(queries, ground_truths, alt_answers, predictions, evalu
 
         llm_responses.append(query_eval_results)
         
+        # Determine the response type for logging
+        response_type = "hallucinated" # Default: has box but incorrect
+        if best_score == 1:
+            response_type = "correct"
+        elif best_eval_explanation:
+            if best_eval_explanation["explanation"] == "missing (no llm-as-a-judge applied)":
+                response_type = "missing"
+            elif best_eval_explanation["explanation"] == "Evaluation Error: prediction not in \\boxed{} format":
+                response_type = "no_boxed"
+
+        # Log to JSONL for detailed analysis
+        log_reward_detail({
+                "query": query,
+                "ground_truth": ground_truth,
+                "alternative_answers": alt_answers[_idx],
+                "out_of_knowledge": ook_flags[_idx],
+                "prediction": best_prediction,
+                "response_type": response_type,
+                "best_score": best_score,
+                "eval_reasoning": best_eval_explanation["explanation"] if best_eval_explanation else None
+        })
+
         if best_eval_explanation:
             if best_eval_explanation["explanation"] == "missing (no llm-as-a-judge applied)":
                 n_miss += 1
@@ -342,19 +389,24 @@ def generate_results(generator, generator_name, TOP_K, n_sample=None, split='tes
     dataset = datasets.load_dataset(f'weizhepei/TruthRL-{dataset_name}', split=split)
     
     METHOD = 'RAG'
-    PREFIX = f"{prefix}_{METHOD}" if prefix else METHOD
+    lora_suffix = "_LoRA" if generator.lora_path else "_Fresh"
+    PREFIX = f"{prefix}_{METHOD}{lora_suffix}" if prefix else f"{METHOD}{lora_suffix}"
 
     # Generate predictions
     output_path = f"results/{dataset_name}/{split}/{generator_name.split('/')[-1]}/{PREFIX}/{n_answer}_responses/results_top_{TOP_K}.json"
 
-    generate_predictions(dataset, generator, save_path=output_path, n_sample=n_sample, top_p=top_p, temperature=temperature, n_answer=n_answer, max_new_tokens=max_new_tokens, max_seq_length=max_seq_length, is_rag=is_rag)
+    queries, ground_truths, alternative_answers, prompts, predictions, ook_flags = generate_predictions(dataset, generator, save_path=output_path, n_sample=n_sample, top_p=top_p, temperature=temperature, n_answer=n_answer, max_new_tokens=max_new_tokens, max_seq_length=max_seq_length, is_rag=is_rag)
+    return queries, ground_truths, alternative_answers, predictions, ook_flags
 
 
-def compute_metrics(generator_name, TOP_K, split='test', prefix=None, n_answer=1, llm_judge="llama-70b", temperature=0, top_p=0.9, max_new_tokens=512, dataset_name='CRAG', n_sample=None, base_url="http://localhost:8000/v1"):
+def compute_metrics(generator_name, TOP_K, split='test', prefix=None, n_answer=1, llm_judge="gemma-3-27b-it", temperature=0, top_p=0.9, max_new_tokens=512, dataset_name='CRAG', n_sample=None, base_url="http://localhost:8080/v1"):
 
     METHOD = 'RAG'
-    PREFIX = f"{prefix}_{METHOD}" if prefix else METHOD
-
+    # We check if the checkpoint exists in the expected path or if LORA_PATH is set
+    lora_path = os.environ.get("LORA_PATH")
+    lora_suffix = "_LoRA" if (lora_path and lora_path.strip() != "") else "_Fresh"
+    PREFIX = f"{prefix}_{METHOD}{lora_suffix}" if prefix else f"{METHOD}{lora_suffix}"
+    
     results_path = f"results/{dataset_name}/{split}/{generator_name.split('/')[-1]}/{PREFIX}/{n_answer}_responses/results_top_{TOP_K}.json"
     with open(results_path, "r") as f:
         results = json.load(f)
@@ -366,8 +418,9 @@ def compute_metrics(generator_name, TOP_K, split='test', prefix=None, n_answer=1
     ground_truths = [item["ground_truth"] for item in results]
     alt_answers = [item["alternative_answers"] for item in results]
     predictions = [item["prediction"] for item in results]
+    ook_flags = [item.get("out_of_knowledge", False) for item in results]
 
-    evaluation_results, llm_responses = evaluate_predictions(queries, ground_truths, alt_answers, predictions, llm_judge, temperature, top_p, max_new_tokens, base_url=base_url)
+    evaluation_results, llm_responses = evaluate_predictions(queries, ground_truths, alt_answers, predictions, ook_flags, llm_judge, temperature, top_p, max_new_tokens, base_url=base_url)
 
     output_dir = f"results/{dataset_name}/{split}/{generator_name.split('/')[-1]}/{PREFIX}/{n_answer}_responses/judge_{llm_judge.split('/')[-1]}"
     os.makedirs(output_dir, exist_ok=True)
@@ -395,17 +448,34 @@ if __name__ == "__main__":
         'HotpotQA': 'validation', # dev
         'MuSiQue': 'validation'} # dev
 
-    api_url="http://localhost:8000/v1"
+    # api_url = "http://10.148.0.18:8080/v1" # H100
+    api_url = "http://10.148.0.19:8000/v1" # A100
+
+    # Read LoRA path from environment variable. If not set, use None for a 'fresh' model.
+    lora_path = os.environ.get("LORA_PATH")
+    if not lora_path or lora_path.strip() == "":
+        lora_path = None
+        print(">>>> INFO: LORA_PATH not set. Evaluating the FRESH base model.")
+    else:
+        print(f">>>> INFO: Evaluating with LoRA weights from: {lora_path}")
 
     for generator_name in ["meta-llama/Llama-3.1-8B-Instruct"]:
-        model = InstructModel(model_name=generator_name, decode_batch_size=4, vllm_tensor_parallel_size=4, vllm_gpu_memory_utilization=0.85)
+        model = InstructModel(
+            model_name=generator_name, 
+            lora_path=lora_path,
+            decode_batch_size=4, 
+            vllm_tensor_parallel_size=1, 
+            vllm_gpu_memory_utilization=0.7
+        )
         for dataset in dataset2testsplit:
+            if dataset != 'CRAG':
+                continue
             for prefix in ['Greedy']:
                 for split in [dataset2testsplit[dataset]]:
                     for TOP_K in [50]:
                         for n_answer in [1]:
-                            for ctx_length in [32768]:
+                            for ctx_length in [8192]: 
                                 print(f">>>>> Generating results for {dataset}/{split}/{generator_name}/{prefix}/{n_answer}_responses/results_top_{TOP_K}.json")
-                                generate_results(model, generator_name, TOP_K, prefix=prefix, n_sample=None, temperature=0, top_p=0.9, n_answer=n_answer, max_new_tokens=2048, max_seq_length=ctx_length, split=split, dataset_name=dataset)
-                                for llm_judge in ["meta-llama/Llama-3.3-70B-Instruct"]:
+                                generate_results(model, generator_name, TOP_K, prefix=prefix, n_sample=None, temperature=0, top_p=0.9, n_answer=n_answer, max_new_tokens=1024, max_seq_length=ctx_length, split=split, dataset_name=dataset)
+                                for llm_judge in ["google/gemma-3-27b-it"]:
                                     compute_metrics(generator_name, TOP_K, prefix=prefix, n_answer=n_answer, llm_judge=llm_judge, temperature=0, max_new_tokens=512, dataset_name=dataset, n_sample=None, split=split, base_url=api_url)  

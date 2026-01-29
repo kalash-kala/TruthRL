@@ -308,6 +308,10 @@ class FSDPVLLMShardingManager(BaseShardingManager):
                     Returns:
                         str: Transformed parameter key for base layer.
                     """
+                    # Explicitly handle embed_tokens if it requires base_layer
+                    if k == "model.embed_tokens.weight":
+                        return "model.embed_tokens.base_layer.weight"
+                    
                     stacked_params = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
                     if k.endswith(".weight"):
                         module_k = k[: -len(".weight")]

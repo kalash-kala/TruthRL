@@ -398,6 +398,28 @@ client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
 
+import json
+from datetime import datetime
+
+def log_reward_detail(data):
+    """Logs detailed reward information to a JSONL file. Only active if enabled."""
+    if os.environ.get("TRUTHRL_ENABLE_TRAIN_LOGS") != "1":
+        return
+        
+    log_name = os.environ.get("TRUTHRL_LOG_NAME", "training_default")
+    log_dir = os.path.join("/home/kalashkala/TruthRL/outputs/reward_logs", log_name)
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Use PID to avoid write conflicts in multi-process/Ray environments
+    log_file = os.path.join(log_dir, f"reward_detail_{os.getpid()}.jsonl")
+    
+    data["timestamp"] = datetime.now().isoformat()
+    try:
+        with open(log_file, "a") as f:
+            f.write(json.dumps(data) + "\n")
+    except Exception as e:
+        print(f"Failed to write reward log: {e}")
+
 def get_system_message(type='outcome'):
     if type == 'outcome':
         return INSTRUCTIONS + "\n" + IN_CONTEXT_EXAMPLES
@@ -410,7 +432,7 @@ def attempt_api_call(messages, max_retries=3):
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
-                model="meta-llama/Llama-3.3-70B-Instruct",
+                model="google/gemma-3-27b-it",
                 messages=messages,
                 temperature=0,
                 top_p=0.9,
@@ -477,60 +499,73 @@ def compute_score_llm_as_a_judge_binary_OOK(solution_str, ground_truth):
             print("Extracted answer: None!")
         print(f"Solution string: {solution_str}")
 
-    # no answer box found, return -1
-    if prediction is None:
-        if do_print:
-            print(">>>>>> Reward: -1 (no answer box)")
-        return -1
-    
-    normalized_prediction = normalize_answer(prediction)
-
-    # for out-of-knowledge questions: the model should answer "i dont know"
-    if ground_truth['out_of_knowledge'] is True:
-        if do_print:
-            if "i dont know" in normalized_prediction:
-                print(">>>>>> Reward: 1 (this is an out-of-knowledge question)")
-            else:
-                print(">>>>>>Reward: -1 (this is an out-of-knowledge question)")
-
-        return 1 if "i dont know" in normalized_prediction else -1
-
-    # the model should not answer "i dont know" or "invalid question" for non out-of-knowledge questions
-    if "i dont know" in normalized_prediction or "invalid question" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: -1 (this is not an out-of-knowledge question)")
-        return -1
-        
-    # check if the prediction exactly matches any of the ground truth
-    for gt in gts:
-        if normalize_answer(gt) == normalized_prediction:
-            if do_print:
-                print(">>>>>> Reward: 1 (exact match)")
-            return 1
-    
     # otherwise, check if the prediction is correct via LLM-as-a-judge
     system_message = get_system_message()
     query = ground_truth['problem']
-    for gt in gts:
-        messages = [
-            {"role": "system", "content": system_message},
-            {
-                "role": "user",
-                "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
-            },
-        ]
-        llm_response = attempt_api_call(messages)
-        if llm_response:
-            judge_response, is_correct = parse_response(llm_response)
-            if is_correct == 1:
-                if do_print:
-                    print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_response})")
-                return 1
+    reward = -1
+    judge_explanation = None
+    response_type = "hallucinated"
+    
+    if prediction is None:
+        reward = -1
+        response_type = "no_boxed"
+    else:
+        normalized_prediction = normalize_answer(prediction)
+        if ground_truth['out_of_knowledge'] is True:
+            if "i dont know" in normalized_prediction:
+                reward = 1
+                response_type = "correct"
+            else:
+                reward = -1
+                response_type = "hallucinated"
+        elif "i dont know" in normalized_prediction or "invalid question" in normalized_prediction:
+            reward = -1
+            response_type = "missing"
+        else:
+            # check if it matches any gt exactly
+            found_match = False
+            for gt in gts:
+                if normalize_answer(gt) == normalized_prediction:
+                    reward = 1
+                    found_match = True
+                    response_type = "correct"
+                    break
             
-    if do_print:
-        print(">>>>>> Reward: -1 (LLM-as-a-judge: incorrect prediction)")
+            if not found_match:
+                for gt in gts:
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {
+                            "role": "user",
+                            "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
+                        },
+                    ]
+                    llm_response = attempt_api_call(messages)
+                    if llm_response:
+                        judge_explanation, is_correct = parse_response(llm_response)
+                        if is_correct == 1:
+                            reward = 1
+                            response_type = "correct"
+                            if do_print:
+                                print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_explanation})")
+                            break
+                
+    if reward == -1 and do_print:
+        print(f">>>>>> Reward: -1 ({response_type})")
 
-    return -1
+    log_reward_detail({
+        "question": query,
+        "golden_answers": gts,
+        "out_of_knowledge": ground_truth['out_of_knowledge'],
+        "prediction": prediction,
+        "response_type": response_type,
+        "full_response": solution_str,
+        "reward": reward,
+        "type": "binary_OOK",
+        "judge_explanation": judge_explanation
+    })
+
+    return reward
 
     
 def compute_score_llm_as_a_judge_binary(solution_str, ground_truth):
@@ -551,56 +586,70 @@ def compute_score_llm_as_a_judge_binary(solution_str, ground_truth):
             print("Extracted answer: None!")
         print(f"Solution string: {solution_str}")
 
-    # no answer box found, return -1
-    if prediction is None:
-        if do_print:
-            print(">>>>>> Reward: -1 (no answer box)")
-        return -1
-    
-    normalized_prediction = normalize_answer(prediction)
-
-    # i dont know, return -1
-    if "i dont know" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: -1 (i dont know)")
-        return -1
-
-    # should not answer invalid question, return -1
-    if "invalid question" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: -1 (invalid question)")
-        return -1
-
-    # check if the prediction exactly matches any of the ground truth
-    for gt in gts:
-        if normalize_answer(gt) == normalized_prediction:
-            if do_print:
-                print(">>>>>> Reward: 1 (exact match)")
-            return 1
-    
     # otherwise, check if the prediction is correct via LLM-as-a-judge
     system_message = get_system_message()
     query = ground_truth['problem']
-    for gt in gts:
-        messages = [
-            {"role": "system", "content": system_message},
-            {
-                "role": "user",
-                "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
-            },
-        ]
-        llm_response = attempt_api_call(messages)
-        if llm_response:
-            judge_response, is_correct = parse_response(llm_response)
-            if is_correct == 1:
-                if do_print:
-                    print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_response})")
-                return 1
+    reward = -1
+    judge_explanation = None
+    response_type = "hallucinated"
+    
+    if prediction is None:
+        reward = -1
+        response_type = "no_boxed"
+    else:
+        normalized_prediction = normalize_answer(prediction)
+        if "i dont know" in normalized_prediction:
+            reward = -1
+            response_type = "missing"
+        elif "invalid question" in normalized_prediction:
+            reward = -1
+            response_type = "missing"
+        else:
+            # exact match check
+            found_match = False
+            for gt in gts:
+                if normalize_answer(gt) == normalized_prediction:
+                    reward = 1
+                    response_type = "correct"
+                    found_match = True
+                    break
             
-    if do_print:
-        print(">>>>>> Reward: -1 (LLM-as-a-judge: incorrect prediction)")
+            if not found_match:
+                for gt in gts:
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {
+                            "role": "user",
+                            "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
+                        },
+                    ]
+                    llm_response = attempt_api_call(messages)
+                    if llm_response:
+                        judge_explanation, is_correct = parse_response(llm_response)
+                        if is_correct == 1:
+                            reward = 1
+                            response_type = "correct"
+                            if do_print:
+                                print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_explanation})")
+                            break
+                
+    if reward == -1 and do_print:
+        print(f">>>>>> Reward: -1 ({response_type})")
 
-    return -1
+    # Log details for manual analysis
+    log_reward_detail({
+        "question": query,
+        "golden_answers": gts,
+        "out_of_knowledge": ground_truth['out_of_knowledge'],
+        "prediction": prediction,
+        "response_type": response_type,
+        "full_response": solution_str,
+        "reward": reward,
+        "type": "binary",
+        "judge_explanation": judge_explanation
+    })
+
+    return reward
 
 
 def compute_process_score(solution_str, ground_truth):
@@ -644,68 +693,69 @@ def compute_score_llm_as_a_judge_ternary(solution_str, ground_truth, process_rew
             print("Extracted answer: None!")
         print(f"Solution string: {solution_str}")
 
-    # no answer box found, return -1
-    if prediction is None:
-        if do_print:
-            print(">>>>>> Reward: -1 (no answer box)")
-            if process_reward is not None:
-                print(f"   >>>>>> Process Reward: {process_reward}")
-        return -1
-    
-    normalized_prediction = normalize_answer(prediction)
-
-    # i dont know, return 0
-    if "i dont know" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: 0 (i dont know)")
-            if process_reward is not None:
-                print(f"   >>>>>> Process Reward: {process_reward}")
-        return 0
-
-    # should not answer invalid question, return -1
-    if "invalid question" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: -1 (invalid question)")
-            if process_reward is not None:
-                print(f"   >>>>>> Process Reward: {process_reward}")
-        return -1
-
-    # check if the prediction exactly matches any of the ground truth
-    for gt in gts:
-        if normalize_answer(gt) == normalized_prediction:
-            if do_print:
-                print(">>>>>> Reward: 1 (exact match)")
-                if process_reward is not None:
-                    print(f"   >>>>>> Process Reward: {process_reward}")
-            return 1
-    
-    # otherwise, check if the prediction is correct via LLM-as-a-judge
-    system_message = get_system_message()
+    reward = -1
+    judge_explanation = None
     query = ground_truth['problem']
-    for gt in gts:
-        messages = [
-            {"role": "system", "content": system_message},
-            {
-                "role": "user",
-                "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
-            },
-        ]
-        llm_response = attempt_api_call(messages)
-        if llm_response:
-            judge_response, is_correct = parse_response(llm_response)
-            if is_correct == 1:
-                if do_print:
-                    print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_response})")
-                    if process_reward is not None:
-                        print(f"   >>>>>> Process Reward: {process_reward}")
-                return 1
+    response_type = "hallucinated"
+
+    if prediction is None:
+        reward = -1
+        response_type = "no_boxed"
+    else:
+        normalized_prediction = normalize_answer(prediction)
+        if "i dont know" in normalized_prediction:
+            reward = 0
+            response_type = "missing"
+        elif "invalid question" in normalized_prediction:
+            reward = -1
+            response_type = "missing"
+        else:
+            # check for exact match
+            found_match = False
+            for gt in gts:
+                if normalize_answer(gt) == normalized_prediction:
+                    reward = 1
+                    response_type = "correct"
+                    found_match = True
+                    break
+            
+            if not found_match:
+                system_message = get_system_message()
+                for gt in gts:
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {
+                            "role": "user",
+                            "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
+                        },
+                    ]
+                    llm_response = attempt_api_call(messages)
+                    if llm_response:
+                        judge_explanation, is_correct = parse_response(llm_response)
+                        if is_correct == 1:
+                            reward = 1
+                            response_type = "correct"
+                            break
             
     if do_print:
-        print(">>>>>> Reward: -1 (LLM-as-a-judge: incorrect prediction)")
-        if process_reward is not None:
-            print(f"   >>>>>> Process Reward: {process_reward}")
+        print(f">>>>>> Reward: {reward} ({response_type})")
+        if judge_explanation:
+            print(f"   >>>>>> Judge: {judge_explanation}")
 
-    return -1
+    # Log details for manual analysis
+    log_reward_detail({
+        "question": query,
+        "golden_answers": gts,
+        "out_of_knowledge": ground_truth['out_of_knowledge'],
+        "prediction": prediction,
+        "response_type": response_type,
+        "full_response": solution_str,
+        "reward": reward,
+        "type": "ternary",
+        "judge_explanation": judge_explanation
+    })
+
+    return reward
 
 
 def compute_score_llm_as_a_judge_ternary_OOK(solution_str, ground_truth):
@@ -726,65 +776,77 @@ def compute_score_llm_as_a_judge_ternary_OOK(solution_str, ground_truth):
             print("Extracted answer: None!")
         print(f"Solution string: {solution_str}")
 
-    # no answer box found, return -1
-    if prediction is None:
-        if do_print:
-            print(">>>>>> Reward: -1 (no answer box)")
-        return -1
-    
-    normalized_prediction = normalize_answer(prediction)
-
-    # for out-of-knowledge questions: the model should answer "i dont know"
-    if ground_truth['out_of_knowledge'] is True:
-        if do_print:
-            if "i dont know" in normalized_prediction:
-                print(">>>>>> Reward: 1 (this is an out-of-knowledge question)")
-            else:
-                print(">>>>>>Reward: -1 (this is an out-of-knowledge question)")
-
-        return 1 if "i dont know" in normalized_prediction else -1
-
-    if "i dont know" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: 0 (i dont know) for non out-of-knowledge questions")
-        return 0
-
-    # should not answer invalid question, return -1
-    if "invalid question" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: -1 (invalid question)")
-        return -1
-
-    # check if the prediction exactly matches any of the ground truth
-    for gt in gts:
-        if normalize_answer(gt) == normalized_prediction:
-            if do_print:
-                print(">>>>>> Reward: 1 (exact match)")
-            return 1
-    
     # otherwise, check if the prediction is correct via LLM-as-a-judge
     system_message = get_system_message()
     query = ground_truth['problem']
-    for gt in gts:
-        messages = [
-            {"role": "system", "content": system_message},
-            {
-                "role": "user",
-                "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
-            },
-        ]
-        llm_response = attempt_api_call(messages)
-        if llm_response:
-            judge_response, is_correct = parse_response(llm_response)
-            if is_correct == 1:
-                if do_print:
-                    print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_response})")
-                return 1
+    reward = -1
+    judge_explanation = None
+    response_type = "hallucinated"
+    
+    if prediction is None:
+        reward = -1
+        response_type = "no_boxed"
+    else:
+        normalized_prediction = normalize_answer(prediction)
+        if ground_truth['out_of_knowledge'] is True:
+            if "i dont know" in normalized_prediction:
+                reward = 1
+                response_type = "correct"
+            else:
+                reward = -1
+                response_type = "hallucinated"
+        elif "i dont know" in normalized_prediction:
+            reward = 0
+            response_type = "missing"
+        elif "invalid question" in normalized_prediction:
+            reward = -1
+            response_type = "missing"
+        else:
+            # exact match check
+            found_match = False
+            for gt in gts:
+                if normalize_answer(gt) == normalized_prediction:
+                    reward = 1
+                    response_type = "correct"
+                    found_match = True
+                    break
             
+            if not found_match:
+                for gt in gts:
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {
+                            "role": "user",
+                            "content": f"Question: {query}\n Ground truth: {gt}\n Prediction: {prediction}\n",
+                        },
+                    ]
+                    llm_response = attempt_api_call(messages)
+                    if llm_response:
+                        judge_explanation, is_correct = parse_response(llm_response)
+                        if is_correct == 1:
+                            reward = 1
+                            response_type = "correct"
+                            if do_print:
+                                print(f">>>>>> Reward: 1 (LLM-as-a-judge: {judge_explanation})")
+                            break
+                
     if do_print:
-        print(">>>>>> Reward: -1 (LLM-as-a-judge: incorrect prediction)")
+        print(f">>>>>> Reward: {reward} ({response_type})")
 
-    return -1
+    # Log details for manual analysis
+    log_reward_detail({
+        "question": query,
+        "golden_answers": gts,
+        "out_of_knowledge": ground_truth['out_of_knowledge'],
+        "prediction": prediction,
+        "response_type": response_type,
+        "full_response": solution_str,
+        "reward": reward,
+        "type": "ternary_OOK",
+        "judge_explanation": judge_explanation
+    })
+
+    return reward
 
 
     
@@ -807,33 +869,43 @@ def compute_score_llm_as_a_judge_ternary_EM(solution_str, ground_truth):
         print(f"Solution string: {solution_str}")
 
     # no answer box found, return -1
+    reward = -1
+    response_type = "hallucinated"
     if prediction is None:
-        if do_print:
-            print(">>>>>> Reward: -1 (no answer box)")
-        return -1
-    
-    normalized_prediction = normalize_answer(prediction)
+        reward = -1
+        response_type = "no_boxed"
+    else:
+        normalized_prediction = normalize_answer(prediction)
 
-    # i dont know, return 0
-    if "i dont know" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: 0 (i dont know)")
-        return 0
-
-    # should not answer invalid question, return -1
-    if "invalid question" in normalized_prediction:
-        if do_print:
-            print(">>>>>> Reward: -1 (invalid question)")
-        return -1
-
-    # check if the prediction exactly matches any of the ground truth
-    for gt in gts:
-        if normalize_answer(gt) == normalized_prediction:
-            if do_print:
-                print(">>>>>> Reward: 1 (exact match)")
-            return 1
+        # i dont know, return 0
+        if "i dont know" in normalized_prediction:
+            reward = 0
+            response_type = "missing"
+        # should not answer invalid question, return -1
+        elif "invalid question" in normalized_prediction:
+            reward = -1
+            response_type = "missing"
+        else:
+            # check if the prediction exactly matches any of the ground truth
+            for gt in gts:
+                if normalize_answer(gt) == normalized_prediction:
+                    reward = 1
+                    response_type = "correct"
+                    break
             
     if do_print:
-        print(">>>>>> Reward: -1 (LLM-as-a-judge: incorrect prediction)")
+        print(f">>>>>> Reward: {reward} ({response_type})")
 
-    return -1
+    # Log details for manual analysis
+    log_reward_detail({
+        "question": ground_truth['problem'],
+        "golden_answers": gts,
+        "out_of_knowledge": ground_truth['out_of_knowledge'],
+        "prediction": prediction,
+        "response_type": response_type,
+        "full_response": solution_str,
+        "reward": reward,
+        "type": "ternary_EM"
+    })
+
+    return reward

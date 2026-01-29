@@ -9,12 +9,15 @@ from typing import Any, Dict, List
 import vllm
 from prompts import PROMPT_RETRIEVAL, PROMPT_NO_RETRIEVAL, BOX_FORMAT
 
-class InstructModel:
-    def __init__(self, model_name="meta-llama/Meta-Llama-3.1-8B-Instruct", decode_batch_size=8, vllm_tensor_parallel_size=8, vllm_gpu_memory_utilization=0.85):
-        self.initialize_models(model_name, decode_batch_size, vllm_tensor_parallel_size, vllm_gpu_memory_utilization)
+from vllm.lora.request import LoRARequest
 
-    def initialize_models(self, model_name, decode_batch_size, vllm_tensor_parallel_size, vllm_gpu_memory_utilization):
+class InstructModel:
+    def __init__(self, model_name="meta-llama/Meta-Llama-3.1-8B-Instruct", lora_path=None, decode_batch_size=8, vllm_tensor_parallel_size=1, vllm_gpu_memory_utilization=0.85):
+        self.initialize_models(model_name, lora_path, decode_batch_size, vllm_tensor_parallel_size, vllm_gpu_memory_utilization)
+
+    def initialize_models(self, model_name, lora_path, decode_batch_size, vllm_tensor_parallel_size, vllm_gpu_memory_utilization):
         self.model_name = model_name
+        self.lora_path = lora_path
 
         self.llm = vllm.LLM(
             self.model_name,
@@ -22,6 +25,8 @@ class InstructModel:
             gpu_memory_utilization=vllm_gpu_memory_utilization, 
             trust_remote_code=True,
             dtype="bfloat16",
+            enable_lora=bool(lora_path),
+            max_lora_rank=64 if lora_path else None, # Buffer for rank 16
         )
         self.tokenizer = self.llm.get_tokenizer()
         self.batch_size = decode_batch_size  
@@ -59,7 +64,8 @@ class InstructModel:
                 skip_special_tokens=True,
                 max_tokens=max_new_tokens,
             ),
-            use_tqdm = False
+            use_tqdm = False,
+            lora_request=LoRARequest("adapter", 1, self.lora_path) if self.lora_path else None
         )
 
         answers = [] 
