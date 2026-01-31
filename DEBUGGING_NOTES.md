@@ -24,7 +24,7 @@ There was a mismatch in parameter key naming between the FSDP-wrapped actor mode
 The vLLM model in this configuration (with LoRA) wraps `embed_tokens` in a base layer, requiring the `.base_layer.` suffix.
 
 ### Solution
-Modified `/home/kalashkala/TruthRL/training/verl/verl/workers/sharding_manager/fsdp_vllm.py` in the `replace_lora_wrapper` function to explicitly map the key:
+Modified `/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/sharding_manager/fsdp_vllm.py` in the `replace_lora_wrapper` function to explicitly map the key:
 
 ```python
 # Explicitly handle embed_tokens if it requires base_layer
@@ -32,7 +32,7 @@ if k == "model.embed_tokens.weight":
     return "model.embed_tokens.base_layer.weight"
 ```
 
-**File**: [`fsdp_vllm.py:311-313`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/sharding_manager/fsdp_vllm.py#L311-L313)
+**File**: [`fsdp_vllm.py:311-313`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/sharding_manager/fsdp_vllm.py#L311-L313)
 
 ### Verification
 - The training script successfully loads weights without the KeyError
@@ -54,7 +54,7 @@ The training code was requesting `meta-llama/Llama-3.3-70B-Instruct` from the ve
 The verifier model name was hardcoded in the reward scoring function and didn't match the deployed model.
 
 ### Solution
-Modified `/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py` to use the correct model:
+Modified `/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py` to use the correct model:
 
 ```python
 response = client.chat.completions.create(
@@ -66,7 +66,7 @@ response = client.chat.completions.create(
 )
 ```
 
-**File**: [`truthrl_qa.py:412-418`](file:///home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py#L412-L418)
+**File**: [`truthrl_qa.py:412-418`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py#L412-L418)
 
 ---
 
@@ -152,13 +152,13 @@ kill -9 <PID>
 
 ## Files Modified
 
-1. **`/home/kalashkala/TruthRL/training/verl/verl/workers/sharding_manager/fsdp_vllm.py`**
+1. **`/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/sharding_manager/fsdp_vllm.py`**
    - Added `embed_tokens` to `base_layer` mapping
 
-2. **`/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py`**
+2. **`/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py`**
    - Changed verifier model name to `google/gemma-3-27b-it`
 
-3. **`/home/kalashkala/TruthRL/train_grpo.sh`**
+3. **`/home/sriramg/kalashabhayk/TruthRL/train_grpo.sh`**
    - Updated `OPENAI_API_BASE` to point to verifier server IP
    - Added `HYDRA_FULL_ERROR=1` for better error messages
 

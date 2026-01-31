@@ -381,7 +381,7 @@ def compute_score_subem(solution_str, ground_truth, method="strict", format_scor
 """
 >>> from openai import OpenAI
 >>> client = OpenAI(
-...     base_url="http://localhost:8000/v1",
+...     base_url="http://34.63.39.89:8000/v1",
 ...     api_key="token-abc123",
 ... )
 >>> response = client.chat.completions.create(model="meta-llama/Llama-3.3-70B-Instruct", messages=[{"role":"user", "content":"tell me sth about meta"}])
@@ -407,7 +407,11 @@ def log_reward_detail(data):
         return
         
     log_name = os.environ.get("TRUTHRL_LOG_NAME", "training_default")
-    log_dir = os.path.join("/home/kalashkala/TruthRL/outputs/reward_logs", log_name)
+    # Use absolute path relative to the repository root
+    # truthrl_qa.py is at TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, "../../../../../"))
+    log_dir = os.path.join(project_root, "outputs/reward_logs", log_name)
     os.makedirs(log_dir, exist_ok=True)
     
     # Use PID to avoid write conflicts in multi-process/Ray environments

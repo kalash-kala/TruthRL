@@ -19,7 +19,7 @@ export LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH
 export TOKENIZERS_PARALLELISM=false
 
 export RAY_DEDUP_LOGS=0
-export OPENAI_API_BASE=http://localhost:8000/v1
+export OPENAI_API_BASE=http://34.63.39.89:8000/v1
 export OPENAI_API_KEY="token-abc123"
 
 export WANDB_PROJECT="TruthRL"

@@ -427,8 +427,7 @@ def compute_score_subem(solution_str, ground_truth, method="strict", format_scor
 """
 >>> from openai import OpenAI
 >>> client = OpenAI(
-...     # base_url="http://localhost:8000/v1",
-...     base_url="http://h100-st-p548xlarge-409:8000/v1",
+...     base_url="http://34.63.39.89:8000/v1",
 ...     api_key="token-abc123",
 ... )
 >>> response = client.chat.completions.create(model="meta-llama/Llama-3.3-70B-Instruct", messages=[{"role":"user", "content":"tell me sth about meta"}])
@@ -441,8 +440,8 @@ from openai import OpenAI, APIConnectionError, RateLimitError
 
 # Initialize OpenAI client
 client = OpenAI(
-    # base_url="http://localhost:8000/v1",
-    # base_url="http://h100-st-p548xlarge-409:8000/v1",
+    # base_url="http://34.63.39.89:8000/v1",
+    # base_url="http://34.63.39.89:8000/v1",
     base_url=os.environ.get("OPENAI_API_BASE"),
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
