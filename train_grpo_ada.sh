@@ -1,4 +1,11 @@
+#!/bin/bash
+#################################################################################
+# TRUTHRL - GRPO Training on ADA6000
+# Purpose: Specialized training script for nodes with ADA6000 GPUs.
+# Config: Uses 2 GPUs (CUDA_VISIBLE_DEVICES=0,1) with optimized memory settings.
+#################################################################################
 set -x
+
 
 export HYDRA_FULL_ERROR=1
 export RAY_DEDUP_LOGS=0

@@ -1,4 +1,10 @@
 #!/bin/bash
+#################################################################################
+# TRUTHRL - Evaluation Runner
+# Purpose: Wrapper script to run model evaluation with or without LoRA adapters.
+# Usage: ./run_eval.sh -n <name> [-l <adapter_path>] [-b]
+#################################################################################
+
 
 # Default values
 # Examples:

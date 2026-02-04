@@ -1,4 +1,11 @@
+#!/bin/bash
+#################################################################################
+# TRUTHRL - DPO Training
+# Purpose: Run Direct Preference Optimization on pre-collected paired data.
+# Features: Uses the Open-R1 framework and deepspeed Zero3 for optimization.
+#################################################################################
 source ~/.bashrc
+
 
 export WANDB_PROJECT="TruthRL"
 

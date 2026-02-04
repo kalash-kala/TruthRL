@@ -1,12 +1,18 @@
 #!/bin/bash
+#################################################################################
+# TRUTHRL - Multi-Node Slurm Training (Llama-70B)
+# Purpose: Orchestrates Ray cluster setup and GRPO training across 8 nodes.
+# Config: Designed for high-performance training with FSDP and model splitting.
+#################################################################################
+
 #SBATCH --job-name=TruthRL-Llama-3.3-70B-Instruct
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=120:00:00
 #SBATCH --gpus-per-node=8
 #SBATCH --cpus-per-task=16
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --output=slurm_%j.out
+#SBATCH --error=slurm_%j.err
 
 set -euo pipefail
 

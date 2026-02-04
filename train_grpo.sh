@@ -1,4 +1,10 @@
 #!/bin/bash
+#################################################################################
+# TRUTHRL - General GRPO Training
+# Purpose: Basic template for GRPO training on Llama-8B models.
+# Config: Configured for single-GPU usage with standard memory settings.
+#################################################################################
+
 set -x
 
 export HYDRA_FULL_ERROR=1
