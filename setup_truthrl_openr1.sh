@@ -35,7 +35,8 @@ pip install setuptools
 echo ">>> Installing flash-attn (no build isolation)..."
 pip install flash-attn --no-build-isolation
 
-REPO_ROOT="/home/kalashkala/TruthRL"
+# REPO_ROOT is the directory where this script is located
+REPO_ROOT="$(dirname "${BASH_SOURCE[0]}")"
 echo ">>> Changing directory to open-r1 under ${REPO_ROOT}/training..."
 cd "${REPO_ROOT}/training/open-r1"
 

@@ -2,7 +2,7 @@ import requests
 import json
 
 # Configuration
-API_URL = "http://10.148.0.19:8000/v1/chat/completions"
+API_URL = "http://34.63.39.89:8000/v1/chat/completions"
 API_KEY = "token-abc123"
 MODEL_ID = "google/gemma-3-27b-it"
 
@@ -13,7 +13,7 @@ headers = {
 
 # The prompt/question you want to ask
 messages = [
-    {"role": "user", "content": "what is the capital of Australia?"}
+    {"role": "user", "content": "what is the capital of India?"}
 ]
 
 payload = {
@@ -24,7 +24,7 @@ payload = {
 }
 
 try:
-    response = requests.post(API_URL, headers=headers, json=payload)
+    response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
     response.raise_for_status()
     result = response.json()
     

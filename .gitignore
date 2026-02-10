@@ -8,8 +8,12 @@ training/verl/*.whl
 training/verl/*.whl.1
 
 # Slurm logs
-slurm*.out
-slurm*.err
+slurm_logs/logs/*.out
+slurm_logs/logs/*.err
+slurm_logs/logs/*.log
+slurm_logs/errors/*.out
+slurm_logs/errors/*.err
+slurm_logs/errors/*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

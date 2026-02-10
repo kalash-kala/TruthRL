@@ -1,4 +1,11 @@
+#!/bin/bash
+#################################################################################
+# TRUTHRL - DPO Training
+# Purpose: Run Direct Preference Optimization on pre-collected paired data.
+# Features: Uses the Open-R1 framework and deepspeed Zero3 for optimization.
+#################################################################################
 source ~/.bashrc
+
 
 export WANDB_PROJECT="TruthRL"
 
@@ -19,9 +26,10 @@ REF_MODEL_NAME="meta-llama/Llama-3.1-8B-Instruct"
 # MODEL_NAME="TruthRL/training/checkpoints/dpo/CRAG_Llama-3.1-8B-Instruct_dpo_lr_3e-6_bsz_32_iter_$((iter_idx-1))"
 # REF_MODEL_NAME="TruthRL/training/checkpoints/dpo/CRAG_Llama-3.1-8B-Instruct_dpo_lr_3e-6_bsz_32_iter_$((iter_idx-1))"
 
-TRAIN_DATA_DIR="TruthRL/data/CRAG/DPO/iter_dpo_CRAG_data/iter_${iter_idx}/best_of_32/train_data_reward_paired.json"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+TRAIN_DATA_DIR="${SCRIPT_DIR}/data/CRAG/DPO/iter_dpo_CRAG_data/iter_${iter_idx}/best_of_32/train_data_reward_paired.json"
 RUN_NAME="CRAG_Llama-3.1-8B-Instruct_dpo_lr_${LR}_bsz_${BATCH_SIZE}_iter_${iter_idx}"
-OUTPUT_DIR="TruthRL/training/checkpoints/dpo/${RUN_NAME}"
+OUTPUT_DIR="${SCRIPT_DIR}/training/checkpoints/dpo/${RUN_NAME}"
 
 echo "Running DPO with learning rate ${LR} for iteration ${iter_idx}"
 

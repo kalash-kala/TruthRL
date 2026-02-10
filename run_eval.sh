@@ -1,4 +1,10 @@
 #!/bin/bash
+#################################################################################
+# TRUTHRL - Evaluation Runner
+# Purpose: Wrapper script to run model evaluation with or without LoRA adapters.
+# Usage: ./run_eval.sh -n <name> [-l <adapter_path>] [-b]
+#################################################################################
+
 
 # Default values
 # Examples:
@@ -6,7 +12,7 @@
 #      ./run_eval.sh -n baseline_fresh -b
 #
 #   2. Trained Model (Checkpoint) in background:
-#      ./run_eval.sh -n trained_v1 -l /home/kalashkala/TruthRL/checkpoints/TruthRL/TruthRL-meta-llama/Llama-3.1-8B-Instruct_bsz_8_lr_1e-6_kl_loss_coef_0.001/global_step_19/actor/lora_adapter -b
+#      ./run_eval.sh -n trained_v1 -l checkpoints/TruthRL/TruthRL-meta-llama/Llama-3.1-8B-Instruct_bsz_8_lr_1e-6_kl_loss_coef_0.001/global_step_19/actor/lora_adapter -b
 #
 #   3. Foreground run:
 #      ./run_eval.sh -n test_run

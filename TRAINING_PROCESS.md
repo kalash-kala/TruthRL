@@ -1,6 +1,6 @@
 # TruthRL Training Process Documentation
 
-This document explains the overall training process and important Python functions that get called when executing the [`train_grpo.sh`](file:///home/kalashkala/TruthRL/train_grpo.sh) script.
+This document explains the overall training process and important Python functions that get called when executing the [`train_grpo.sh`](file:///home/sriramg/kalashabhayk/TruthRL/train_grpo.sh) script.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -56,7 +56,7 @@ python3 -m verl.trainer.main_ppo \
 ## Main Training Pipeline
 
 ### 2. **Entry Point: `main_ppo.py`**
-**Location:** [`training/verl/verl/trainer/main_ppo.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/main_ppo.py)
+**Location:** [`training/verl/verl/trainer/main_ppo.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/main_ppo.py)
 
 #### **`main(config)`** (Line 33-40)
 - Decorated with `@hydra.main` for configuration management
@@ -124,7 +124,7 @@ resource_pool_spec = {
 reward_fn = load_reward_manager(config, tokenizer, num_examine=0, ...)
 val_reward_fn = load_reward_manager(config, tokenizer, num_examine=1, ...)
 ```
-- **Function:** [`load_reward_manager()`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/reward.py#L93-L148)
+- **Function:** [`load_reward_manager()`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/reward.py#L93-L148)
 - Loads custom or default reward function
 - Uses OpenAI API to call external verifier model
 - Returns `AbstractRewardManager` instance
@@ -173,7 +173,7 @@ trainer.fit()            # Start the training loop
 ## Key Components and Functions
 
 ### 4. **RayPPOTrainer Class**
-**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py)
+**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py)
 
 #### **`init_workers()`** (Lines 780-883)
 **Purpose:** Initialize all distributed worker groups
@@ -289,7 +289,7 @@ with marked_timer("gen", timing_raw, color="red"):
 ```
 
 **Function:** `ActorRolloutRefWorker.generate_sequences()` 
-**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L743-L778)
+**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L743-L778)
 
 **Purpose:** Generate response sequences using vLLM
 
@@ -311,7 +311,7 @@ with marked_timer("reward", timing_raw, color="yellow"):
 ```
 
 **Function:** `compute_reward()`
-**Location:** [`training/verl/verl/trainer/ppo/reward.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/reward.py#L151-L169)
+**Location:** [`training/verl/verl/trainer/ppo/reward.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/reward.py#L151-L169)
 
 **Flow:**
 1. `reward_fn(data, return_dict=True)` → calls reward manager
@@ -327,7 +327,7 @@ with marked_timer("old_log_prob", timing_raw, color="blue"):
 ```
 
 **Function:** `ActorRolloutRefWorker.compute_log_prob()`
-**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L780-L820)
+**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L780-L820)
 
 **Purpose:** Compute log probabilities using current FSDP actor model for PPO ratio calculation
 
@@ -343,7 +343,7 @@ if self.use_reference_policy:
 ```
 
 **Function:** `ActorRolloutRefWorker.compute_ref_log_prob()`
-**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L822-L857)
+**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L822-L857)
 
 **Purpose:** Compute log probabilities from frozen reference model for KL penalty
 
@@ -381,12 +381,12 @@ with marked_timer("adv", timing_raw, color="brown"):
 ```
 
 **Function:** `apply_kl_penalty()`
-**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L154-L193)
+**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L154-L193)
 - Computes KL divergence: `KL = log_prob - ref_log_prob`
 - Updates rewards: `reward = score - kl_coef * KL`
 
 **Function:** `compute_advantage()`
-**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L214-L291)
+**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L214-L291)
 
 **GRPO Advantage Estimator:**
 1. Groups responses by prompt UID
@@ -415,7 +415,7 @@ if self.config.trainer.critic_warmup <= self.global_steps:
 ```
 
 **Function:** `ActorRolloutRefWorker.update_actor()`
-**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L699-L741)
+**Location:** [`training/verl/verl/workers/fsdp_workers.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L699-L741)
 
 **Purpose:** Update actor model using PPO loss
 
@@ -444,7 +444,7 @@ if (
 ```
 
 **Function:** `_validate()`
-**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L628-L778)
+**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L628-L778)
 
 **Steps:**
 1. Generate responses for validation dataset
@@ -466,7 +466,7 @@ if self.config.trainer.save_freq > 0 and (
 ```
 
 **Function:** `_save_checkpoint()`
-**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L885-L941)
+**Location:** [`training/verl/verl/trainer/ppo/ray_trainer.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L885-L941)
 
 **Saves:**
 - Actor model (LoRA adapters)
@@ -563,7 +563,7 @@ During training, you'll see LLM responses and their scores printed to the consol
 ### Files Responsible for Display
 
 #### **1. Primary File: `truthrl_qa.py`** ⭐
-**Location:** [`training/verl/verl/utils/reward_score/truthrl_qa.py`](file:///home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py)
+**Location:** [`training/verl/verl/utils/reward_score/truthrl_qa.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/truthrl_qa.py)
 
 This is the **main file** responsible for the printed output during training.
 
@@ -628,7 +628,7 @@ def attempt_api_call(messages, max_retries=3):
 - `compute_score_llm_as_a_judge_ternary_OOK()` - Ternary scoring with OOK support
 
 #### **2. Reward Manager: `naive.py`**
-**Location:** [`training/verl/verl/workers/reward_manager/naive.py`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/reward_manager/naive.py)
+**Location:** [`training/verl/verl/workers/reward_manager/naive.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/reward_manager/naive.py)
 
 The `NaiveRewardManager.__call__()` method (Lines 46-122) can also print output:
 
@@ -653,7 +653,7 @@ if already_print_data_sources[data_source] < self.num_examine:
   - **Validation**: `num_examine=1` (Line 215) → Prints 1 sample per data source
 
 #### **3. Reward Loading: `reward.py`**
-**Location:** [`training/verl/verl/trainer/ppo/reward.py`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/reward.py)
+**Location:** [`training/verl/verl/trainer/ppo/reward.py`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/reward.py)
 
 **`load_reward_manager()`** (Lines 93-148) orchestrates the setup:
 ```python
@@ -768,26 +768,26 @@ Final Answer: \boxed{lebron james is taller}
 
 | **Function** | **Location** | **Purpose** |
 |-------------|-------------|-------------|
-| `main()` | [`main_ppo.py:33`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/main_ppo.py#L33-L40) | Hydra entry point |
-| `run_ppo()` | [`main_ppo.py:44`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/main_ppo.py#L44-L83) | Initialize Ray and launch training |
-| `TaskRunner.run()` | [`main_ppo.py:94`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/main_ppo.py#L94-L244) | Setup workers, datasets, and trainer |
-| `create_rl_dataset()` | [`main_ppo.py:247`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/main_ppo.py#L247-L294) | Load and tokenize training data |
-| `load_reward_manager()` | [`reward.py:93`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/reward.py#L93-L148) | Initialize reward function |
-| `RayPPOTrainer.init_workers()` | [`ray_trainer.py:780`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L780-L883) | Create distributed worker groups |
-| `RayPPOTrainer.fit()` | [`ray_trainer.py:1039`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L1039-L1398) | Main training loop |
-| `ActorRolloutRefWorker.generate_sequences()` | [`fsdp_workers.py:743`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L743-L778) | Generate responses using vLLM |
-| `compute_reward()` | [`reward.py:151`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/reward.py#L151-L169) | Call external verifier for rewards |
-| `ActorRolloutRefWorker.compute_log_prob()` | [`fsdp_workers.py:780`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L780-L820) | Recompute log probs with current actor |
-| `ActorRolloutRefWorker.compute_ref_log_prob()` | [`fsdp_workers.py:822`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L822-L857) | Compute reference log probs |
-| `apply_kl_penalty()` | [`ray_trainer.py:154`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L154-L193) | Add KL penalty to rewards |
-| `compute_advantage()` | [`ray_trainer.py:214`](file:///home/kalashkala/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L214-L291) | GRPO advantage estimation |
-| `ActorRolloutRefWorker.update_actor()` | [`fsdp_workers.py:699`](file:///home/kalashkala/TruthRL/training/verl/verl/workers/fsdp_workers.py#L699-L741) | PPO policy update |
+| `main()` | [`main_ppo.py:33`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/main_ppo.py#L33-L40) | Hydra entry point |
+| `run_ppo()` | [`main_ppo.py:44`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/main_ppo.py#L44-L83) | Initialize Ray and launch training |
+| `TaskRunner.run()` | [`main_ppo.py:94`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/main_ppo.py#L94-L244) | Setup workers, datasets, and trainer |
+| `create_rl_dataset()` | [`main_ppo.py:247`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/main_ppo.py#L247-L294) | Load and tokenize training data |
+| `load_reward_manager()` | [`reward.py:93`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/reward.py#L93-L148) | Initialize reward function |
+| `RayPPOTrainer.init_workers()` | [`ray_trainer.py:780`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L780-L883) | Create distributed worker groups |
+| `RayPPOTrainer.fit()` | [`ray_trainer.py:1039`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L1039-L1398) | Main training loop |
+| `ActorRolloutRefWorker.generate_sequences()` | [`fsdp_workers.py:743`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L743-L778) | Generate responses using vLLM |
+| `compute_reward()` | [`reward.py:151`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/reward.py#L151-L169) | Call external verifier for rewards |
+| `ActorRolloutRefWorker.compute_log_prob()` | [`fsdp_workers.py:780`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L780-L820) | Recompute log probs with current actor |
+| `ActorRolloutRefWorker.compute_ref_log_prob()` | [`fsdp_workers.py:822`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L822-L857) | Compute reference log probs |
+| `apply_kl_penalty()` | [`ray_trainer.py:154`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L154-L193) | Add KL penalty to rewards |
+| `compute_advantage()` | [`ray_trainer.py:214`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/ppo/ray_trainer.py#L214-L291) | GRPO advantage estimation |
+| `ActorRolloutRefWorker.update_actor()` | [`fsdp_workers.py:699`](file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/workers/fsdp_workers.py#L699-L741) | PPO policy update |
 
 ---
 
 ## Configuration Details
 
-The training is controlled by Hydra configuration with many command-line overrides. Key parameters from [`train_grpo.sh`](file:///home/kalashkala/TruthRL/train_grpo.sh):
+The training is controlled by Hydra configuration with many command-line overrides. Key parameters from [`train_grpo.sh`](file:///home/sriramg/kalashabhayk/TruthRL/train_grpo.sh):
 
 **Data:**
 - `data.train_files`: Path to training parquet file
@@ -899,4 +899,4 @@ watch -n 1 nvidia-smi
 This updates the display every second, allowing you to see the transitions between Rollout (inference) and Actor Update (training).
 
 
-[def]: file:///home/kalashkala/TruthRL/training/verl/verl/trainer/main_ppo.py
+[def]: file:///home/sriramg/kalashabhayk/TruthRL/training/verl/verl/trainer/main_ppo.py

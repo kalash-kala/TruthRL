@@ -22,7 +22,7 @@ from distilabel.steps.tasks import TextGeneration
 
 def build_distilabel_pipeline(
     model: str,
-    base_url: str = "http://localhost:8000/v1",
+    base_url: str = "http://34.63.39.89:8000/v1",
     prompt_column: Optional[str] = None,
     prompt_template: str = "{{ instruction }}",
     temperature: Optional[float] = None,
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--vllm-server-url",
         type=str,
-        default="http://localhost:8000/v1",
+        default="http://34.63.39.89:8000/v1",
         help="URL of the vLLM server",
     )
     parser.add_argument(

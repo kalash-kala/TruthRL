@@ -1,4 +1,11 @@
+#!/bin/bash
+#################################################################################
+# TRUTHRL - SFT Training
+# Purpose: Supervised Fine-Tuning template using the Open-R1 framework.
+# Config: Points to a specific config_sft.yaml file for training parameters.
+#################################################################################
 source ~/.bashrc
+
 
 export WANDB_PROJECT="TruthRL"
 
