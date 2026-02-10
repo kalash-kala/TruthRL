@@ -1,3 +1,4 @@
+# nohup bash train_grpo.sh > train_grpo.log 2>&1 &
 set -x
 
 

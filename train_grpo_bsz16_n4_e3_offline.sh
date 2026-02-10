@@ -1,4 +1,4 @@
-# nohup bash train_grpo.sh > train_grpo.log 2>&1 &
+# nohup bash train_grpo_bsz16_n4_e3_offline.sh > train_grpo_bsz16_n4_e3_offline.log 2>&1 &
 set -x
 export WANDB_MODE=disabled
 
@@ -36,13 +36,14 @@ ROLLOUT_TP_SIZE=1
 MODEL_NAME=meta-llama/Llama-3.1-8B-Instruct
 LR=1e-6
 KL_LOSS_COEF=0.001
-BSZ=8  # Reduced from 16 to fit in single H100 GPU
+BSZ=16  # Increased to 16 for better efficiency
+GROUP_SIZE=4 # Increased GRPO group size for better reward estimation
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=8 \
+    data.train_batch_size=$BSZ \
     data.max_prompt_length=4096 \
     data.max_response_length=1024 \
     data.filter_overlong_prompts=True \
@@ -54,7 +55,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.use_fused_kernels=False \
     actor_rollout_ref.actor.optim.lr=$LR \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=8 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=$BSZ \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=$KL_LOSS_COEF \
@@ -67,8 +68,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=$ROLLOUT_TP_SIZE \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.65 \
-    actor_rollout_ref.rollout.n=2 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.55 \
+    actor_rollout_ref.rollout.n=$GROUP_SIZE \
     actor_rollout_ref.rollout.max_num_batched_tokens=5120 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
@@ -76,10 +77,10 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger='["console"]' \
     trainer.project_name=$WANDB_PROJECT \
-    trainer.experiment_name='TruthRL-'$MODEL_NAME'_bsz_'$BSZ'_lr_'$LR'_kl_loss_coef_'$KL_LOSS_COEF'' \
+    trainer.experiment_name='TruthRL-'$MODEL_NAME'_bsz_'$BSZ'_n_'$GROUP_SIZE'_lr_'$LR'' \
     trainer.n_gpus_per_node=$N_GPUS \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
     trainer.resume_mode=auto \
-    trainer.total_epochs=1 $@
+    trainer.total_epochs=5 $@

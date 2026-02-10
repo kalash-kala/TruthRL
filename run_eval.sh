@@ -10,6 +10,9 @@
 #
 #   3. Foreground run:
 #      ./run_eval.sh -n test_run
+#
+#   4. Trained Model (Checkpoint) in background (Sampling n=4):
+#      ./run_eval.sh -n trained_v4 -l /home/kalashkala/TruthRL/checkpoints/TruthRL/TruthRL-meta-llama/Llama-3.1-8B-Instruct_FullData_FlashAttn/global_step_70/actor/lora_adapter -b
 
 LOG_NAME="eval_$(date +%Y%m%d_%H%M%S)"
 LORA_PATH=""

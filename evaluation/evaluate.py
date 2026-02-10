@@ -470,12 +470,21 @@ if __name__ == "__main__":
         for dataset in dataset2testsplit:
             if dataset != 'CRAG':
                 continue
-            for prefix in ['Greedy']:
+            # Define configurations to run: Greedy (n=1) and Sampling (n=4)
+            configurations = [
+                {'prefix': 'Greedy', 'n_answer': 1, 'temp': 0},
+                {'prefix': 'Sampling', 'n_answer': 4, 'temp': 0.6}
+            ]
+
+            for config in configurations:
+                prefix = config['prefix']
+                n_answer = config['n_answer']
+                temperature = config['temp']
+                
                 for split in [dataset2testsplit[dataset]]:
                     for TOP_K in [50]:
-                        for n_answer in [1]:
-                            for ctx_length in [8192]: 
-                                print(f">>>>> Generating results for {dataset}/{split}/{generator_name}/{prefix}/{n_answer}_responses/results_top_{TOP_K}.json")
-                                generate_results(model, generator_name, TOP_K, prefix=prefix, n_sample=None, temperature=0, top_p=0.9, n_answer=n_answer, max_new_tokens=1024, max_seq_length=ctx_length, split=split, dataset_name=dataset)
-                                for llm_judge in ["google/gemma-3-27b-it"]:
-                                    compute_metrics(generator_name, TOP_K, prefix=prefix, n_answer=n_answer, llm_judge=llm_judge, temperature=0, max_new_tokens=512, dataset_name=dataset, n_sample=None, split=split, base_url=api_url)  
+                        for ctx_length in [8192]: 
+                            print(f">>>>> Generating results for {dataset}/{split}/{generator_name}/{prefix}/{n_answer}_responses/results_top_{TOP_K}.json")
+                            generate_results(model, generator_name, TOP_K, prefix=prefix, n_sample=None, temperature=temperature, top_p=0.9, n_answer=n_answer, max_new_tokens=1024, max_seq_length=ctx_length, split=split, dataset_name=dataset)
+                            for llm_judge in ["google/gemma-3-27b-it"]:
+                                compute_metrics(generator_name, TOP_K, prefix=prefix, n_answer=n_answer, llm_judge=llm_judge, temperature=0, max_new_tokens=512, dataset_name=dataset, n_sample=None, split=split, base_url=api_url)  
