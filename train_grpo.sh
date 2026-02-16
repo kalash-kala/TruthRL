@@ -1,3 +1,4 @@
+# nohup bash train_grpo.sh > train_grpo.log 2>&1 &
 set -x
 export WANDB_MODE=disabled
 
@@ -5,25 +6,20 @@ export HYDRA_FULL_ERROR=1
 export RAY_DEDUP_LOGS=0
 export RAY_DASHBOARD_ENABLED=0
 export RAY_USAGE_STATS_ENABLED=0
-export RAY_METRICS_EXPORT_DISABLE=1
-export HF_DATASETS_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
-export HF_HUB_OFFLINE=1
 # These are for the local verifier/judge model (not OpenAI's API)
 # The verifier model must be hosted with an OpenAI-compatible API (e.g., vLLM)
 # Update OPENAI_API_BASE if your verifier is hosted elsewhere
-# export OPENAI_API_BASE=http://34.63.39.89:8000/v1 # H100 2 new
-export OPENAI_API_BASE=http://34.63.39.89:8000/v1 # A100
+# export OPENAI_API_BASE=http://10.148.0.18:8080/v1 # H100 2 new
+export OPENAI_API_BASE=http://10.148.0.19:8000/v1 # A100
 export OPENAI_API_KEY=token-abc123
 
 # NCCL configuration for single-node training (disable InfiniBand requirement)
 export NCCL_IB_DISABLE=1
-export NCCL_SOCKET_IFNAME=^lo,docker
+export NCCL_SOCKET_IFNAME=enp0s6
 export NCCL_DEBUG=WARN
 
 # CUDA and tokenizer configuration
 export CUDA_VISIBLE_DEVICES=0   
-unset ROCR_VISIBLE_DEVICES
 export TOKENIZERS_PARALLELISM=true
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
@@ -31,14 +27,13 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 export DISABLE_FLASH_ATTN=1
 
 export WANDB_PROJECT="TruthRL"
-export WANDB_MODE=offline
 
-DATA_DIR=../truthrl_data # refer to HF data repo: weizhepei/TruthRL-CRAG
+DATA_DIR=/home/kalashkala/truthrl_data # refer to HF data repo: weizhepei/TruthRL-CRAG
 
 N_GPUS=1
 ROLLOUT_TP_SIZE=1
 
-MODEL_NAME=/home/sriramg/kalashabhayk/models/Llama-3.1-8B-Instruct
+MODEL_NAME=meta-llama/Llama-3.1-8B-Instruct
 LR=1e-6
 KL_LOSS_COEF=0.001
 BSZ=8  # Reduced from 16 to fit in single H100 GPU
@@ -87,4 +82,4 @@ python3 -m verl.trainer.main_ppo \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
     trainer.resume_mode=auto \
-    trainer.total_epochs=5 $@
+    trainer.total_epochs=1 $@

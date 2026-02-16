@@ -676,6 +676,15 @@ class RayPPOTrainer:
                 non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
             )
 
+            # [HF rollout multimodal] Copy multi_modal_inputs for validation generation. Revert: remove this block.
+            if (
+                self.config.actor_rollout_ref.rollout.name == "hf"
+                and "multi_modal_inputs" in test_batch.non_tensor_batch
+            ):
+                test_gen_batch.non_tensor_batch["multi_modal_inputs"] = test_batch.non_tensor_batch[
+                    "multi_modal_inputs"
+                ]
+
             test_gen_batch.meta_info = {
                 "eos_token_id": self.tokenizer.eos_token_id,
                 "pad_token_id": self.tokenizer.pad_token_id,
@@ -1128,6 +1137,11 @@ class RayPPOTrainer:
                     batch_keys=batch_keys_to_pop,
                     non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
                 )
+
+                # [HF rollout multimodal] Copy multi_modal_inputs to gen_batch so HFRollout can use pixel_values.
+                # We do NOT pop it from batch (actor needs it for compute_log_prob). Revert: remove this block.
+                if self.config.actor_rollout_ref.rollout.name == "hf" and "multi_modal_inputs" in batch.non_tensor_batch:
+                    gen_batch.non_tensor_batch["multi_modal_inputs"] = batch.non_tensor_batch["multi_modal_inputs"]
 
                 # pass global_steps to trace
                 gen_batch.meta_info["global_steps"] = self.global_steps

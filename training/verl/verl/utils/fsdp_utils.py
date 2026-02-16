@@ -118,7 +118,8 @@ def get_fsdp_wrap_policy(module, config=None, is_lora=False):
         for layer_class in fsdp_transformer_layer_cls_to_wrap:
             transformer_cls = get_module_class_from_name(module, layer_class)
             if transformer_cls is None:
-                raise Exception("Could not find the transformer layer class to wrap in the model.")
+                # raise Exception("Could not find the transformer layer class to wrap in the model.")
+                print(f"Warning: Could not find the transformer layer class {layer_class} to wrap in the model. Skipping.")
             else:
                 transformer_cls_to_wrap.add(transformer_cls)
 

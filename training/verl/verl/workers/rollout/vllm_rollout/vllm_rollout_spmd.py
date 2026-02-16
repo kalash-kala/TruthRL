@@ -75,6 +75,84 @@ def _pre_process_inputs(pad_token_id, prompt_token_ids: torch.Tensor) -> list[in
     return token_ids
 
 
+# ==============================================================================
+# [TruthRL] Multimodal Token Collapse for vLLM Rollout
+# ==============================================================================
+# Purpose:
+#   When using multimodal models (e.g. Gemma 3), verl's HF processor expands
+#   the image placeholder token (e.g. <start_of_image>) into N soft tokens
+#   (e.g. 256 x <image_soft_token>). However, vLLM has its OWN multimodal
+#   processor that also expands placeholders. If we send pre-expanded tokens
+#   to vLLM, it will expand them AGAIN, doubling the count (256 -> 512) and
+#   causing a fatal tensor mismatch (ValueError: 256 tokens to 512 placeholders).
+#
+# Solution:
+#   Before sending prompt_token_ids to vLLM, we "collapse" the expanded soft
+#   tokens back to the single placeholder token. vLLM then expands them natively.
+#   The Actor model (FSDP) still receives the original expanded tokens for training.
+#
+# This function is a NO-OP for text-only models (no image_token_index in config).
+# ==============================================================================
+def _collapse_multimodal_tokens(token_ids: list[int], model_hf_config) -> list[int]:
+    """Collapse expanded image soft tokens back to the single placeholder token.
+
+    For Gemma 3, this converts:
+      [... <start_of_image>(255999) <soft_token>(262144)x256 <end_of_image>(256000) ...]
+    back to:
+      [... <start_of_image>(255999) ...]
+
+    This is safe because vLLM will re-expand the placeholder itself when it
+    processes the prompt. For text-only models, this function returns the
+    input unchanged.
+
+    Args:
+        token_ids: List of token IDs (already de-padded).
+        model_hf_config: HuggingFace model config, used to detect multimodal tokens.
+
+    Returns:
+        List of token IDs with soft tokens collapsed.
+    """
+    # Guard: only apply to models that have an image_token_index (multimodal models).
+    # For text-only models (e.g. Llama, Qwen), this attribute won't exist → no-op.
+    image_token_index = getattr(model_hf_config, "image_token_index", None)
+    if image_token_index is None:
+        return token_ids
+
+    # Gemma 3 HF config attributes:
+    #   boi_token_index = 255999  (<start_of_image>)  — the placeholder vLLM looks for
+    #   image_token_index = 262144 (<image_soft_token>) — the expanded soft token to strip
+    #   eoi_token_index = 256000  (<end_of_image>)     — also needs to be stripped
+    # Gemma 3 specific token indices
+    soft_token_id = image_token_index
+    boi_token_id = getattr(model_hf_config, "boi_token_index", None)
+    eoi_token_id = getattr(model_hf_config, "eoi_token_index", None)
+
+    collapsed = []
+    i = 0
+    while i < len(token_ids):
+        if token_ids[i] == soft_token_id:
+            # Found soft tokens (image features).
+            # Consume the entire block.
+            while i < len(token_ids) and token_ids[i] == soft_token_id:
+                i += 1
+            # Consume EOI if present.
+            if eoi_token_id is not None and i < len(token_ids) and token_ids[i] == eoi_token_id:
+                i += 1
+            
+            # CRITICAL FIX: Ensure the single BOI placeholder (255999) is present.
+            # If the dataset tokenization omitted it, we must insert it.
+            # If it was already there (the previous token), we don't insert a duplicate.
+            if boi_token_id is not None:
+                if not collapsed or collapsed[-1] != boi_token_id:
+                    collapsed.append(boi_token_id)
+        else:
+            collapsed.append(token_ids[i])
+            i += 1
+
+    return collapsed
+
+
+
 class vLLMRollout(BaseRollout):
     def __init__(self, model_path: str, config: DictConfig, tokenizer, model_hf_config, **kwargs):
         """A vLLM rollout. It requires the module is supported by the vllm.
@@ -163,6 +241,13 @@ class vLLMRollout(BaseRollout):
         if config.get("limit_images", None):  # support for multi-image data
             engine_kwargs["limit_mm_per_prompt"] = {"image": config.get("limit_images")}
 
+        # [TruthRL] For multimodal models (e.g. Gemma 3), disable Pan and Scan in vLLM.
+        # This ensures vLLM expects exactly 256 image tokens, matching verl's HF processor.
+        # Without this, vLLM may expect 512+ tokens (base + crops), causing a mismatch.
+        # This is a no-op for text-only models (no image_token_index in config).
+        if getattr(model_hf_config, "image_token_index", None) is not None:
+            engine_kwargs.setdefault("mm_processor_kwargs", {"do_pan_and_scan": False})
+
         self.inference_engine = LLM(
             model=model_path,
             enable_sleep_mode=config.free_cache_engine,
@@ -206,6 +291,8 @@ class vLLMRollout(BaseRollout):
         self.sampling_params = SamplingParams(**kwargs)
 
         self.pad_token_id = tokenizer.pad_token_id
+        # [TruthRL] Store model config for multimodal token collapse (no-op for text-only models)
+        self.model_hf_config = model_hf_config
 
     @contextmanager
     def update_sampling_params(self, **kwargs):
@@ -262,15 +349,43 @@ class vLLMRollout(BaseRollout):
                 [_pre_process_inputs(self.pad_token_id, idx[i]) for i in range(batch_size)], dtype=object
             )
 
+
         if batch_size != len(non_tensor_batch["raw_prompt_ids"]):
             raise RuntimeError("vllm sharding manager is not work properly.")
 
+        # [TruthRL DEBUG] Check if multi_modal_data is present
+        print(f"[DEBUG] Batch keys: {non_tensor_batch.keys()}")
+        print(f"[DEBUG] Has multi_modal_data: {'multi_modal_data' in non_tensor_batch}")
+        if "multi_modal_data" in non_tensor_batch:
+            print(f"[DEBUG] Number of multi_modal_data items: {len(non_tensor_batch['multi_modal_data'])}")
+            if len(non_tensor_batch['multi_modal_data']) > 0:
+                first_mm = non_tensor_batch['multi_modal_data'][0]
+                print(f"[DEBUG] First multi_modal_data keys: {first_mm.keys() if isinstance(first_mm, dict) else type(first_mm)}")
+
         if "multi_modal_data" in non_tensor_batch:
             vllm_inputs = []
-            for raw_prompt_ids, multi_modal_data in zip(
+            for debug_idx, (raw_prompt_ids, multi_modal_data) in enumerate(zip(
                 non_tensor_batch.pop("raw_prompt_ids"), non_tensor_batch.pop("multi_modal_data"), strict=True
-            ):
-                vllm_inputs.append({"prompt_token_ids": raw_prompt_ids, "multi_modal_data": multi_modal_data})
+            )):
+                # [TruthRL] Collapse expanded soft tokens (e.g. 256 x <image_soft_token>)
+                # back to the single placeholder token (e.g. <img>).
+                # This prevents vLLM from double-expanding the image tokens.
+                # For text-only models, this is a no-op.
+                collapsed_ids = _collapse_multimodal_tokens(list(raw_prompt_ids), self.model_hf_config)
+                
+                # [TruthRL DEBUG] Check BOI token presence
+                boi_id = getattr(self.model_hf_config, "boi_token_index", None)
+                soft_id = getattr(self.model_hf_config, "image_token_index", None)
+                if debug_idx == 0:  # Only log first item to avoid spam
+                    print(f"[DEBUG] Raw prompt length: {len(raw_prompt_ids)}, Collapsed length: {len(collapsed_ids)}")
+                    print(f"[DEBUG] BOI token ({boi_id}) in collapsed IDs: {boi_id in collapsed_ids}")
+                    print(f"[DEBUG] Soft token ({soft_id}) in collapsed IDs: {soft_id in collapsed_ids}")
+                    print(f"[DEBUG] First 30 collapsed IDs: {collapsed_ids[:30]}")
+                    print(f"[DEBUG] Multi-modal data keys: {multi_modal_data.keys()}")
+                    if 'image' in multi_modal_data:
+                        print(f"[DEBUG] Number of images: {len(multi_modal_data['image']) if isinstance(multi_modal_data['image'], list) else 1}")
+                
+                vllm_inputs.append({"prompt_token_ids": collapsed_ids, "multi_modal_data": multi_modal_data})
         else:
             vllm_inputs = [
                 {"prompt_token_ids": raw_prompt_ids} for raw_prompt_ids in non_tensor_batch.pop("raw_prompt_ids")

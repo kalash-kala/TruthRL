@@ -70,6 +70,10 @@ disable_log_stats: True
 # Whether to sample during training rollout. False uses greedy sampling.
 do_sample: True
 
+# [HF rollout multimodal] Set to true to omit position_ids in generate() for VLMs with custom
+# position logic (e.g. Gemma 3 mRoPE). Default false = pass position_ids (original behavior).
+hf_rollout_omit_position_ids: false
+
 # number of responses (i.e. num sample times). > 1 for grpo
 n: 1
 

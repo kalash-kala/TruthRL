@@ -100,26 +100,51 @@ class HFRollout(BaseRollout):
         eos_token_id = prompts.meta_info["eos_token_id"]
         pad_token_id = prompts.meta_info["pad_token_id"]
 
+        # [Multimodal extension] Build multi_modal_inputs (pixel_values, image_grid_thw, etc.) for VLM generate.
+        # When present, forward these to model.generate() so vision inputs are used. Revert: remove this block.
+        multi_modal_kwargs = {}
+        if "multi_modal_inputs" in prompts.non_tensor_batch:
+            mmi_list = prompts.non_tensor_batch["multi_modal_inputs"]
+            if len(mmi_list) > 0 and mmi_list[0] is not None:
+                if "image_bound" in mmi_list[0]:  # minicpm-o logic
+                    for key in mmi_list[0].keys():
+                        multi_modal_kwargs[key] = [m[key] for m in mmi_list]
+                else:
+                    for key in mmi_list[0].keys():
+                        multi_modal_kwargs[key] = torch.cat(
+                            [m[key] for m in mmi_list], dim=0
+                        ).to(idx.device)
+
         self.module.eval()
         param_ctx = contextlib.nullcontext()
 
         if isinstance(self.module, FSDP):
             # recurse need to set to False according to https://github.com/pytorch/pytorch/issues/100069
             param_ctx = FSDP.summon_full_params(self.module, writeback=False, recurse=False)
+
+        # [Multimodal extension] Some VLMs (e.g. Gemma 3 with mRoPE) use custom position_ids.
+        # Set rollout.hf_rollout_omit_position_ids=True to skip passing position_ids and avoid errors.
+        # Default False = use explicit position_ids (original behavior).
+        use_explicit_position_ids = not self.config.get("hf_rollout_omit_position_ids", False)
+
         with param_ctx, torch.autocast(device_type=get_device_name(), dtype=torch.bfloat16):
-            output = self.module.generate(
-                input_ids=idx,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                do_sample=do_sample,
-                max_new_tokens=response_length,
-                eos_token_id=eos_token_id,
-                pad_token_id=pad_token_id,
-                generation_config=generation_config,
-                output_scores=False,  # this is potentially very large
-                return_dict_in_generate=True,
-                use_cache=True,
-            )
+            generate_kwargs = {
+                "input_ids": idx,
+                "attention_mask": attention_mask,
+                "do_sample": do_sample,
+                "max_new_tokens": response_length,
+                "eos_token_id": eos_token_id,
+                "pad_token_id": pad_token_id,
+                "generation_config": generation_config,
+                "output_scores": False,  # this is potentially very large
+                "return_dict_in_generate": True,
+                "use_cache": True,
+                **multi_modal_kwargs,
+            }
+            # Old behavior: always pass position_ids. New: only when use_explicit_position_ids.
+            if use_explicit_position_ids:
+                generate_kwargs["position_ids"] = position_ids
+            output = self.module.generate(**generate_kwargs)
 
         # TODO: filter out the seq with no answers like ds-chat
         seq = output.sequences

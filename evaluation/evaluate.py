@@ -198,7 +198,7 @@ def generate_predictions(dataset, participant_model, save_path=None, n_sample=No
 
 
 
-def evaluate_predictions(queries, ground_truths, alt_answers, predictions, ook_flags, evaluation_model_name, temperature=0, top_p=0.9, max_new_tokens=512, base_url="http://34.63.39.89:8000/v1"):
+def evaluate_predictions(queries, ground_truths, alt_answers, predictions, ook_flags, evaluation_model_name, temperature=0, top_p=0.9, max_new_tokens=512, base_url="http://10.148.0.19:8000/v1"):
     
     n_miss, n_correct, n_exact_match = 0, 0, 0
     n_no_boxed = 0
@@ -401,7 +401,7 @@ def generate_results(generator, generator_name, TOP_K, n_sample=None, split='tes
     return queries, ground_truths, alternative_answers, predictions, ook_flags
 
 
-def compute_metrics(generator_name, TOP_K, split='test', prefix=None, n_answer=1, llm_judge="gemma-3-27b-it", temperature=0, top_p=0.9, max_new_tokens=512, dataset_name='CRAG', n_sample=None, base_url="http://34.63.39.89:8000/v1"):
+def compute_metrics(generator_name, TOP_K, split='test', prefix=None, n_answer=1, llm_judge="gemma-3-27b-it", temperature=0, top_p=0.9, max_new_tokens=512, dataset_name='CRAG', n_sample=None, base_url="http://10.148.0.19:8000/v1"):
 
     METHOD = 'RAG'
     # We check if the checkpoint exists in the expected path or if LORA_PATH is set
@@ -450,8 +450,8 @@ if __name__ == "__main__":
         'HotpotQA': 'validation', # dev
         'MuSiQue': 'validation'} # dev
 
-    # api_url = "http://34.63.39.89:8000/v1" # H100
-    api_url = "http://34.63.39.89:8000/v1" # A100
+    # api_url = "http://10.148.0.19:8000/v1" # H100
+    api_url = "http://10.148.0.19:8000/v1" # A100
 
     # Read LoRA path from environment variable. If not set, use None for a 'fresh' model.
     lora_path = os.environ.get("LORA_PATH")
