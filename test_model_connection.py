@@ -2,7 +2,7 @@ import requests
 import json
 
 # Configuration
-API_URL = "http://34.63.39.89:8000/v1/chat/completions"
+API_URL = "http://35.198.251.55:8000/v1/chat/completions"
 API_KEY = "token-abc123"
 MODEL_ID = "google/gemma-3-27b-it"
 

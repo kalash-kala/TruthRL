@@ -451,7 +451,7 @@ if __name__ == "__main__":
         'MuSiQue': 'validation'} # dev
 
     # api_url = "http://10.148.0.19:8000/v1" # H100
-    api_url = "http://10.148.0.19:8000/v1" # A100
+    api_url = "http://35.198.251.55:8000/v1" # A100 GCP
 
     # Read LoRA path from environment variable. If not set, use None for a 'fresh' model.
     lora_path = os.environ.get("LORA_PATH")

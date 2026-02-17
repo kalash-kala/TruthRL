@@ -25,8 +25,35 @@ def is_torch_npu_available() -> bool:
         return False
 
 
-is_cuda_available = torch.cuda.is_available()
+# NOTE: Do NOT cache torch.cuda.is_available() at module level!
+# Ray workers may import this module before CUDA_VISIBLE_DEVICES is properly set,
+# causing a stale False value. We use a function that checks live instead.
+def _check_cuda_available():
+    import os
+    available = torch.cuda.is_available()
+    if not available:
+        print(f"[DEBUG DEVICE] CUDA not available! PID={os.getpid()}, CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    return available
+
+
+# Keep module-level variables for backward compatibility with code that imports them,
+# but make them properties via a wrapper that checks live.
 is_npu_available = is_torch_npu_available()
+
+
+class _CudaAvailableProxy:
+    """A proxy object that behaves like a bool but checks torch.cuda.is_available() live."""
+    def __bool__(self):
+        return _check_cuda_available()
+    def __repr__(self):
+        return repr(bool(self))
+    def __eq__(self, other):
+        return bool(self) == other
+    def __hash__(self):
+        return hash(bool(self))
+
+
+is_cuda_available = _CudaAvailableProxy()
 
 
 def get_visible_devices_keyword() -> str:
@@ -34,7 +61,7 @@ def get_visible_devices_keyword() -> str:
     Returns:
         'CUDA_VISIBLE_DEVICES' or `ASCEND_RT_VISIBLE_DEVICES`
     """
-    return "CUDA_VISIBLE_DEVICES" if is_cuda_available else "ASCEND_RT_VISIBLE_DEVICES"
+    return "CUDA_VISIBLE_DEVICES" if _check_cuda_available() else "ASCEND_RT_VISIBLE_DEVICES"
 
 
 def get_device_name() -> str:
@@ -43,7 +70,7 @@ def get_device_name() -> str:
     Returns:
         device
     """
-    if is_cuda_available:
+    if _check_cuda_available():
         device = "cuda"
     elif is_npu_available:
         device = "npu"
@@ -78,7 +105,7 @@ def get_nccl_backend() -> str:
     Returns:
         nccl backend type string.
     """
-    if is_cuda_available:
+    if _check_cuda_available():
         return "nccl"
     elif is_npu_available:
         return "hccl"

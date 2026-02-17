@@ -26,7 +26,7 @@ class InstructModel:
             trust_remote_code=True,
             dtype="bfloat16",
             enable_lora=bool(lora_path),
-            max_lora_rank=64 if lora_path else None, # Buffer for rank 16
+            max_lora_rank=256 if lora_path else None, 
         )
         self.tokenizer = self.llm.get_tokenizer()
         self.batch_size = decode_batch_size  

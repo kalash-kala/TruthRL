@@ -55,9 +55,13 @@ def run_ppo(config) -> None:
         # Set environment variables in the runtime environment to control tokenizer parallelism,
         # NCCL debug level, VLLM logging level, and allow runtime LoRA updating
         # `num_cpus` specifies the number of CPU cores Ray can use, obtained from the configuration
+        # `num_gpus` specifies the number of GPUs available (critical for GPU worker allocation)
+        import torch
+        num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
         ray.init(
             runtime_env=get_ppo_ray_runtime_env(),
             num_cpus=config.ray_init.num_cpus,
+            num_gpus=num_gpus,
         )
 
     # Create a remote instance of the TaskRunner class, and

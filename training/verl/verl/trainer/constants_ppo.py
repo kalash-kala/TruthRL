@@ -34,4 +34,10 @@ def get_ppo_ray_runtime_env():
     for key in list(runtime_env["env_vars"].keys()):
         if os.environ.get(key) is not None:
             runtime_env["env_vars"].pop(key, None)
+    
+    # CRITICAL: Always pass CUDA_VISIBLE_DEVICES to Ray workers
+    # Without this, Ray workers won't see GPUs even if they're available
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        runtime_env["env_vars"]["CUDA_VISIBLE_DEVICES"] = os.environ["CUDA_VISIBLE_DEVICES"]
+    
     return runtime_env

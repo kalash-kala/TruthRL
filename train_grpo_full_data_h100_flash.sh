@@ -24,7 +24,7 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 # We removed DISABLE_FLASH_ATTN=1 to use the installed flash-attn 2.7.4
 
 export WANDB_PROJECT="TruthRL"
-DATA_DIR=/home/kalashkala/truthrl_data
+DATA_DIR=$(pwd)/../truthrl_data
 
 N_GPUS=1
 ROLLOUT_TP_SIZE=1
