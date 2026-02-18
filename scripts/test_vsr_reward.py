@@ -2,10 +2,10 @@
 import sys
 import os
 
-# Add the directory containing vsr_lexical to sys.path
-sys.path.append('/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score')
+# Add the package root to sys.path
+sys.path.append('/root/kalashkala/TruthRL/training/verl')
 
-from vsr_lexical import compute_score
+from verl.utils.reward_score.vsr_lexical import compute_score
 
 def test_reward():
     test_cases = [
@@ -25,7 +25,8 @@ def test_reward():
     print("Running reward function tests...")
     for i, (pred, gt, expected) in enumerate(test_cases):
         # Note: In Verl, ground_truth is often passed as the target value or a dict
-        reward = compute_score(pred, gt)
+        reward_dict = compute_score(pred, gt)
+        reward = reward_dict['score']
         status = "PASSED" if reward == expected else "FAILED"
         print(f"Test {i}: Pred='{pred}', GT='{gt}', Expected={expected}, Got={reward} -> {status}")
         if reward != expected:

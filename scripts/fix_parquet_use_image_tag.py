@@ -6,8 +6,8 @@ import pandas as pd
 from transformers import AutoProcessor
 
 MODEL_NAME = "google/gemma-3-4b-it"
-TRAIN_PATH = "/home/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/train.parquet"
-TEST_PATH = "/home/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test.parquet"
+TRAIN_PATH = "/root/kalashkala/visual-spatial-reasoning-final/truthrl-sample/parquet/train.parquet"
+TEST_PATH = "/root/kalashkala/visual-spatial-reasoning-final/truthrl-sample/parquet/test.parquet"
 
 def fix_dataset(parquet_path):
     print(f"Loading {parquet_path}...")
