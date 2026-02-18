@@ -9,8 +9,8 @@ export RAY_DASHBOARD_ENABLED=0
 export RAY_USAGE_STATS_ENABLED=0
 
 export NCCL_IB_DISABLE=1
-export NCCL_SOCKET_IFNAME=enp0s6
-export NCCL_DEBUG=WARN
+export NCCL_SOCKET_IFNAME='^lo,docker,virbr,br-,veth'
+# export NCCL_DEBUG=WARN
 
 export CUDA_VISIBLE_DEVICES=0   
 export TOKENIZERS_PARALLELISM=true
@@ -25,7 +25,7 @@ BSZ=16
 GROUP_SIZE=2
 ROLLOUT_TP_SIZE=1
 
-/home/kalashkala/miniconda3/envs/truthrl-verl/bin/python -m verl.trainer.main_ppo \
+python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
