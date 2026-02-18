@@ -16,9 +16,9 @@ export CUDA_VISIBLE_DEVICES=0
 export TOKENIZERS_PARALLELISM=true
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-DATA_DIR=/home/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet
+DATA_DIR=/data/visual-spatial-reasoning-final/truthrl-sample/parquet
 MODEL_NAME=google/gemma-3-4b-it
-REWARD_FN_PATH=/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vsr_lexical.py
+REWARD_FN_PATH=/root/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vsr_lexical.py
 
 LR=1e-5
 BSZ=16
