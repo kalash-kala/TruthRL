@@ -347,6 +347,11 @@ class RayPPOTrainer:
         self.hybrid_engine = config.actor_rollout_ref.hybrid_engine
         assert self.hybrid_engine, "Currently, only support hybrid engine"
 
+        # Initialize tracking for KL and Epoch metrics
+        self.kl_history = []
+        self.epoch_metrics = defaultdict(list)
+        self.epoch_accuracy = []
+
         if self.hybrid_engine:
             assert Role.ActorRollout in role_worker_mapping, f"{role_worker_mapping.keys()=}"
 
@@ -1099,6 +1104,7 @@ class RayPPOTrainer:
         next_step_profile = False
 
         for epoch in range(self.config.trainer.total_epochs):
+            self.epoch_metrics.clear() # Clear metrics for the new epoch
             for batch_dict in self.train_dataloader:
                 metrics = {}
                 timing_raw = {}
@@ -1390,6 +1396,29 @@ class RayPPOTrainer:
                 n_gpus = self.resource_pool_manager.get_n_gpus()
                 metrics.update(compute_throughout_metrics(batch=batch, timing_raw=timing_raw, n_gpus=n_gpus))
 
+                # --- START OF EPOCH TRACKING ---
+                # 1. Capture Training Accuracy from reward manager if it exists
+                if 'accuracy' in batch.non_tensor_batch:
+                    batch_acc = np.mean(batch.non_tensor_batch['accuracy'])
+                    metrics['training/accuracy'] = batch_acc
+                
+                # 2. Accumulate metrics for epoch-level averaging
+                for k, v in metrics.items():
+                    if isinstance(v, (int, float)):
+                        self.epoch_metrics[k].append(v)
+                
+                # 3. KL Spike Detection
+                kl_key = 'actor/ppo_kl' if 'actor/ppo_kl' in metrics else 'actor/reward_kl_penalty'
+                if kl_key in metrics:
+                    curr_kl = metrics[kl_key]
+                    if len(self.kl_history) > 10:
+                        avg_kl = np.mean(self.kl_history[-10:])
+                        if curr_kl > avg_kl * 2.5 and curr_kl > 0.1: # Only warn if it significantly exceeds avg and is not tiny
+                             print(f"\033[91m [WARNING] KL Spike Detected at step {self.global_steps}: {curr_kl:.4f} (last 10-avg: {avg_kl:.4f}) \033[0m")
+                    self.kl_history.append(curr_kl)
+                    if len(self.kl_history) > 100: self.kl_history.pop(0)
+                # --- END OF EPOCH TRACKING ---
+
                 # this is experimental and may be changed/removed in the future in favor of a general-purpose one
                 if isinstance(self.train_dataloader.sampler, AbstractCurriculumSampler):
                     self.train_dataloader.sampler.update(batch=batch)
@@ -1410,3 +1439,11 @@ class RayPPOTrainer:
                 if hasattr(self.train_dataset, "on_batch_end"):
                     # The dataset may be changed after each training batch
                     self.train_dataset.on_batch_end(batch=batch)
+
+            # --- END OF EPOCH LOGGING ---
+            # Calculate and log the average metrics for the epoch
+            if self.epoch_metrics:
+                epoch_summary = {f"epoch/{k}": np.mean(v) for k, v in self.epoch_metrics.items() if len(v) > 0}
+                logger.log(data=epoch_summary, step=self.global_steps)
+                print(f" >>> Completed Epoch {epoch}. Avg Accuracy: {epoch_summary.get('epoch/training/accuracy', 'N/A')}")
+            # --- END OF EPOCH LOGGING ---

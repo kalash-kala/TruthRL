@@ -117,6 +117,13 @@ def _collapse_multimodal_tokens(token_ids: list[int], model_hf_config) -> list[i
     image_token_index = getattr(model_hf_config, "image_token_index", None)
     if image_token_index is None:
         return token_ids
+    
+    # [TruthRL] Check if this is Gemma 3 specifically.
+    # Other models (e.g. Qwen2-VL) use image_token_index differently and don't need this fix.
+    architectures = getattr(model_hf_config, "architectures", [])
+    is_gemma3 = any("Gemma3" in arch for arch in architectures)
+    if not is_gemma3:
+        return token_ids
 
     # Gemma 3 HF config attributes:
     #   boi_token_index = 255999  (<start_of_image>)  — the placeholder vLLM looks for

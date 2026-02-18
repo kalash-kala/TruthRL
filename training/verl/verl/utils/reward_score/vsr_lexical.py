@@ -55,14 +55,14 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
     # Variations: "i don't know", "i dont know", "unsure"
     unknown_triggers = ["i don't know", "i dont know", "unsure", "i do not know"]
     if any(trigger in pred_str for trigger in unknown_triggers):
-        return 0.0
+        return {'score': 0.0, 'accuracy': 0.0}
         
     # 4. Check for Exact Match
     if pred_str == target_str:
-        return score
+        return {'score': score, 'accuracy': 1.0}
     
     # 5. Check for Incorrect Answer (Hallucination)
     # If target is "true" and pred is "false", or vice-versa
     # Or if pred is random gibberish (also punished as -1)
     
-    return -1.0
+    return {'score': -1.0, 'accuracy': 0.0}
