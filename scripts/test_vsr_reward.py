@@ -3,23 +3,22 @@ import sys
 import os
 
 # Add the package root to sys.path
-sys.path.append('/root/kalashkala/TruthRL/training/verl')
+sys.path.append('/home/sriramg/kalashabhayk/TruthRL/training/verl')
 
 from verl.utils.reward_score.vsr_lexical import compute_score
 
 def test_reward():
     test_cases = [
         # (prediction, ground_truth, expected_reward)
-        ("True", "True", 1.0),
-        ("False", "True", -1.0),
-        ("True.", "True", 1.0), # Normalization check
-        (" true ", "True", 1.0), # Normalization check
-        ("I don't know", "True", 0.0), # Refusal check
-        ("I'm not sure", "True", -1.0), # Not in trigger list yet (as per current code)
-        ("I dont know", "True", 0.0), # Refusal check
-        ("Random output", "False", -1.0),
-        ("False", "False", 1.0),
-        ({"ground_truth": "True"}, "True", 1.0), # This case is unlikely based on how Verl calls it, but let's test the dict handling in my code
+        ("<reasoning start> The statement correctly describes the spatial relationship. <reasoning end> /box[True]/", "True", 1.0),
+        ("<reasoning start> The object is on the right, not left. <reasoning end> /box[False]/", "True", -1.0),
+        ("/box[True]/", "True", 1.0), 
+        ("/box[False]/", "False", 1.0),
+        ("<reasoning start> Based on my analysis, I am unable to confirm the spatial relationship. <reasoning end> /box[I don't know]/", "True", 0.0),
+        ("True", "True", 1.0), # Backward compatibility check
+        ("I don't know", "True", 0.0), # Backward compatibility check
+        ("Gibberish without box", "True", -1.0),
+        ("<reasoning start> Reasoning but no box <reasoning end>", "True", -1.0),
     ]
 
     print("Running reward function tests...")

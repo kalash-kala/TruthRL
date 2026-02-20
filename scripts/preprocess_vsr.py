@@ -12,9 +12,8 @@ def preprocess_vsr(train_path, test_path, output_dir, image_base_dir, model_name
 
     os.makedirs(output_dir, exist_ok=True)
 
-    print(f"Loading processor for {model_name} to resolve special image tokens...")
-    processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
-    image_token = processor.image_token
+    # Verl requires the literal '<image>' tag in the prompt for its internal processing.
+    image_token = "<image>"
 
     def process_file(file_path, split_name):
         print(f"Processing {split_name} data from {file_path}...")
@@ -32,17 +31,17 @@ def preprocess_vsr(train_path, test_path, output_dir, image_base_dir, model_name
             # 2. Map Label to Text
             label_text = "True" if row['label'] == 1 else "False"
 
-            # 3. Construct Prompt (Messages with special image token)
+            # 3. Construct Prompt (Messages with standard <image> token)
             caption = row['caption']
             
             system_prompt = (
                 "You are a visual spatial reasoning expert. "
                 "Analyze the image and the statement. "
-                "Answer exactly 'True', 'False', or 'I don't know'. "
-                "Do not provide explanations."
+                "Answer exactly 'True', 'False', or 'I don't know' in the /box[<answer>]/ format (keep in mind the answer should be enclosed in square brackets, for example /box[True]/. "
+                "Provide your reasoning for choosing the answer in the <reasoning start> reasoning <reasoning end> format."
             )
 
-            # Important: We replace literal '<image>' with the actual special token for the model
+            # Important: Use '<image>' as expected by Verl
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"{image_token}\n{caption}"}
