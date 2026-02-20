@@ -45,10 +45,17 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
     
     target = ground_truth
     if isinstance(ground_truth, dict):
-        target = ground_truth.get("ground_truth", "False") # Default invalid if missing?
+        target = ground_truth.get("ground_truth", "False")
     
-    # 2. Normalize Prediction
-    pred_str = normalize_answer(solution_str)
+    # 2. Extract Answer from Box or Fallback
+    box_match = re.search(r'/box\[(.*?)\]/', solution_str)
+    if box_match:
+        answer_to_check = box_match.group(1)
+    else:
+        answer_to_check = solution_str
+    
+    # 3. Normalize Prediction
+    pred_str = normalize_answer(answer_to_check)
     target_str = normalize_answer(target)
     
     # 3. Check for "I don't know" (Safe Refusal)
