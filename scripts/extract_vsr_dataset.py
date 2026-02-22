@@ -8,10 +8,11 @@ import requests
 from tqdm import tqdm
 
 # --- Configuration ---
-METADATA_PATH = "/home/sriramg/kalashabhayk/vsr_dataset/dataset_infos.json"
-BASE_DIR = "/home/sriramg/kalashabhayk/visual-spatial-reasoning"
+METADATA_PATH = "/home/debarpanb1/kalashkala/vsr_dataset/dataset_infos.json"
+BASE_DIR = "/home/debarpanb1/kalashkala/visual-spatial-reasoning"
 SAMPLE_DIR = os.path.join(BASE_DIR, "truthrl-sample/data")
 IMAGE_DIR = os.path.join(BASE_DIR, "truthrl-sample/images")
+SEED = 42
 
 def get_checksum(file_path):
     """Calculate SHA256 checksum of a file."""
@@ -81,18 +82,18 @@ def sample_dataset():
 
     # Process Train
     df_train = pd.read_json(paths['train'], lines=True)
-    df_train_0 = df_train[df_train['label'] == 0].sample(n=375)
-    df_train_1 = df_train[df_train['label'] == 1].sample(n=375)
-    df_train_sampled = pd.concat([df_train_0, df_train_1]).sample(frac=1).reset_index(drop=True)
+    df_train_0 = df_train[df_train['label'] == 0].sample(n=375, random_state=SEED)
+    df_train_1 = df_train[df_train['label'] == 1].sample(n=375, random_state=SEED)
+    df_train_sampled = pd.concat([df_train_0, df_train_1]).sample(frac=1, random_state=SEED).reset_index(drop=True)
     train_out = os.path.join(SAMPLE_DIR, 'train_sampled.jsonl')
     df_train_sampled.to_json(train_out, orient='records', lines=True)
     print(f"Saved balanced train sample to: {train_out}")
 
     # Process Test
     df_test = pd.read_json(paths['test'], lines=True)
-    df_test_0 = df_test[df_test['label'] == 0].sample(n=375)
-    df_test_1 = df_test[df_test['label'] == 1].sample(n=375)
-    df_test_sampled = pd.concat([df_test_0, df_test_1]).sample(frac=1).reset_index(drop=True)
+    df_test_0 = df_test[df_test['label'] == 0].sample(n=375, random_state=SEED)
+    df_test_1 = df_test[df_test['label'] == 1].sample(n=375, random_state=SEED)
+    df_test_sampled = pd.concat([df_test_0, df_test_1]).sample(frac=1, random_state=SEED).reset_index(drop=True)
     test_out = os.path.join(SAMPLE_DIR, 'test_sampled.jsonl')
     df_test_sampled.to_json(test_out, orient='records', lines=True)
     print(f"Saved balanced test sample to: {test_out}")
