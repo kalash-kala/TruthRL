@@ -5,7 +5,14 @@ import torch
 import pandas as pd
 import argparse
 import ast
+import copy
 from tqdm import tqdm
+import sys
+
+# Add the local verl directory to sys.path so we can import the reward function
+import_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "training", "verl"))
+sys.path.insert(0, import_path)
+
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from qwen_vl_utils import process_vision_info
 from verl.utils.reward_score.vsr_lexical import compute_score
@@ -17,10 +24,11 @@ from datetime import datetime
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate Qwen2.5-VL on VSR Task")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model checkpoint or huggingface model")
-    parser.add_argument("--data_path", type=str, default="/data/visual-spatial-reasoning-final/truthrl-sample/parquet/test.parquet", help="Path to the test parquet file")
+    parser.add_argument("--processor_path", type=str, default=None, help="Path to load processor/tokenizer from (defaults to model_path). Use base model path when evaluating VeRL checkpoints that lack processor files.")
+    parser.add_argument("--data_path", type=str, default="/home/debarpanb1/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test.parquet", help="Path to the test parquet file")
     parser.add_argument("--output_dir", type=str, default="results/vsr_eval", help="Directory to save results")
     parser.add_argument("--batch_size", type=int, default=1, help="Inference batch size")
-    parser.add_argument("--max_new_tokens", type=int, default=16, help="Max tokens to generate")
+    parser.add_argument("--max_new_tokens", type=int, default=1024, help="Max tokens to generate")
     parser.add_argument("--name", type=str, default="eval_run", help="Name of the evaluation run (for logging)")
     return parser.parse_args()
 
@@ -32,6 +40,8 @@ def normalize_text(text):
 
 def main():
     args = parse_args()
+    # If --processor_path not specified, fall back to model_path
+    processor_path = args.processor_path if args.processor_path else args.model_path
     
     # Setup Output Directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -49,9 +59,10 @@ def main():
     # Load Model & Processor
     # -----------------------------------------------------------------------------
     print(f"Loading model processing tools...")
+    print(f"Processor path: {processor_path}")
     try:
-        # Load processor from the model path. If it's a checkpoint, it should have tokenizer configs.
-        processor = AutoProcessor.from_pretrained(args.model_path, trust_remote_code=True)
+        # Load processor from processor_path (base model for VeRL checkpoints, or model_path for HF models)
+        processor = AutoProcessor.from_pretrained(processor_path, trust_remote_code=True)
         
         # Load model using bfloat16 and Flash Attention 2 for efficiency
         # Using a specific device 'cuda:0' to avoid device mismatch issues with device_map="auto"
@@ -109,17 +120,49 @@ def main():
         for index, row in tqdm(df.iterrows(), total=len(df)):
             try:
                 # 1. Prepare Inputs
-                messages = list(row['prompt']) # Copy message history
+                # Convert pyarrow/numpy arrays to list and deepcopy to avoid mutating source dataframe
+                raw_prompt = row['prompt']
+                if hasattr(raw_prompt, 'tolist'):
+                    raw_prompt = raw_prompt.tolist()
+                messages = copy.deepcopy(list(raw_prompt))
+                
+                # Patch system prompt to encourage reasoning-first behavior
+                # for msg in messages:
+                #     if msg['role'] == 'system':
+                #         msg['content'] = (
+                #             "You are a visual spatial reasoning expert. Analyze the image and the statement. "
+                #             "First, provide your detailed reasoning in the <reasoning start> reasoning <reasoning end> format. "
+                #             "Then, based on your reasoning, answer exactly 'True', 'False', or 'I don't know' "
+                #             "in the /box[<answer>]/ format (e.g., /box[True]/)."
+                #         )
                 
                 # Extract image path correctly based on observed structure:
-                # images: [{'image': 'file:///...'}]
                 image_path = "unknown"
-                if 'images' in row and isinstance(row['images'], list) and len(row['images']) > 0:
+                if 'images' in row and len(row['images']) > 0:
                     first_img = row['images'][0]
                     if isinstance(first_img, dict) and 'image' in first_img:
                         image_path = first_img['image']
+                    elif hasattr(first_img, 'get'): # Handles dict-like numpy structures
+                        image_path = first_img.get('image', first_img)
                     elif isinstance(first_img, str):
                         image_path = first_img
+                elif 'image' in row:
+                     # Some datasets might use singular 'image'
+                     image_path = row['image']
+                
+                # Fix the messages format to include the image for Qwen2-VL / Qwen2.5-VL
+                # Qwen expects the user message content to be a list of dicts:
+                # [{"type": "image", "image": "file:///..."}, {"type": "text", "text": "..."}]
+                if image_path != "unknown":
+                    for msg in messages:
+                        if msg['role'] == 'user':
+                            orig_content = msg['content']
+                            # Remove the literal '<image>' tag if it's there
+                            clean_text = orig_content.replace("<image>\n", "").replace("<image>", "").strip()
+                            msg['content'] = [
+                                {"type": "image", "image": image_path},
+                                {"type": "text", "text": clean_text}
+                            ]
                 
                 # Extract ground truth from reward_model dict
                 # reward_model: {'ground_truth': 'False', 'style': 'lexical'}
@@ -189,27 +232,29 @@ def main():
                 # User requested: Caption, Image Location, Model Answer, Ground Truth, Verdict
                 
                 # Extract image path from row if available
-                image_path = "unknown"
+                log_image_path = "unknown"
                 if 'images' in row and len(row['images']) > 0:
-                    image_path = row['images'][0]
+                    first_img = row['images'][0]
+                    if isinstance(first_img, dict) and 'image' in first_img:
+                        log_image_path = first_img['image']
+                    elif hasattr(first_img, 'get'):
+                        log_image_path = first_img.get('image', first_img)
+                    else:
+                        log_image_path = first_img
                 elif 'image' in row:
-                     # Some datasets might use singular 'image'
-                     image_path = row['image']
+                     log_image_path = row['image']
                 
                 # Extract Caption (User Prompt) - usually the last user message before assistant
-                # The 'text' variable contains the full conversation history formatted by chat template.
                 caption = "unknown"
-                for msg in messages:
+                for msg in row['prompt']:  # Use the original row prompt which might just have strings
                     if msg['role'] == 'user':
-                        # In VSR, the user prompt is usually the question/caption
-                        # It might contain <image> placeholder, let's keep it as is or strip it
                         caption = msg['content']
-                        # If there are multiple user messages, this takes the last one (or you can decide logic)
 
                 result_entry = {
                     "index": index,
+                    "prompt": text,
                     "caption": caption,
-                    "image_location": image_path,
+                    "image_location": str(log_image_path),
                     "model_answer": prediction,
                     "ground_truth": ground_truth,
                     "verdict": result_type,  # correct, refusal, incorrect
@@ -218,6 +263,7 @@ def main():
                 
                 results.append(result_entry)
                 detail_file.write(json.dumps(result_entry) + "\n")
+                detail_file.flush() # Force write to disk for real-time monitoring
 
             except Exception as e:
                 print(f"Error processing item {index}: {e}")
