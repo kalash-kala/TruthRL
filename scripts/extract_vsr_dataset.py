@@ -70,7 +70,8 @@ def sample_dataset():
     print("\n--- STEP 2: Sampling and balancing dataset ---")
     paths = {
         'test': os.path.join(BASE_DIR, 'random/test.jsonl'),
-        'train': os.path.join(BASE_DIR, 'random/train.jsonl')
+        'train': os.path.join(BASE_DIR, 'random/train.jsonl'),
+        'val': os.path.join(BASE_DIR, 'random/dev.jsonl')
     }
 
     for p in paths.values():
@@ -82,8 +83,8 @@ def sample_dataset():
 
     # Process Train
     df_train = pd.read_json(paths['train'], lines=True)
-    df_train_0 = df_train[df_train['label'] == 0].sample(n=375, random_state=SEED)
-    df_train_1 = df_train[df_train['label'] == 1].sample(n=375, random_state=SEED)
+    df_train_0 = df_train[df_train['label'] == 0].sample(n=1000, random_state=SEED)
+    df_train_1 = df_train[df_train['label'] == 1].sample(n=1000, random_state=SEED)
     df_train_sampled = pd.concat([df_train_0, df_train_1]).sample(frac=1, random_state=SEED).reset_index(drop=True)
     train_out = os.path.join(SAMPLE_DIR, 'train_sampled.jsonl')
     df_train_sampled.to_json(train_out, orient='records', lines=True)
@@ -98,6 +99,15 @@ def sample_dataset():
     df_test_sampled.to_json(test_out, orient='records', lines=True)
     print(f"Saved balanced test sample to: {test_out}")
     
+    # Process Val
+    df_val = pd.read_json(paths['val'], lines=True)
+    df_val_0 = df_val[df_val['label'] == 0].sample(n=100, random_state=SEED)
+    df_val_1 = df_val[df_val['label'] == 1].sample(n=100, random_state=SEED)
+    df_val_sampled = pd.concat([df_val_0, df_val_1]).sample(frac=1, random_state=SEED).reset_index(drop=True)
+    val_out = os.path.join(SAMPLE_DIR, 'val_sampled.jsonl')
+    df_val_sampled.to_json(val_out, orient='records', lines=True)
+    print(f"Saved balanced validation sample to: {val_out}")
+    
     return True
 
 def download_sampled_images():
@@ -105,7 +115,8 @@ def download_sampled_images():
     print("\n--- STEP 3: Downloading images ---")
     jsonl_files = [
         os.path.join(SAMPLE_DIR, "test_sampled.jsonl"),
-        os.path.join(SAMPLE_DIR, "train_sampled.jsonl")
+        os.path.join(SAMPLE_DIR, "train_sampled.jsonl"),
+        os.path.join(SAMPLE_DIR, "val_sampled.jsonl")
     ]
     
     os.makedirs(IMAGE_DIR, exist_ok=True)
