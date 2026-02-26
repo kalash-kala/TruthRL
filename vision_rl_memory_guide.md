@@ -14,7 +14,28 @@ In the `verl` framework, the total amount of data generated and held in memory p
 | :-------------------- | :------------ | :------------ | :----------------- | :------------- |
 | **Full Fine-Tuning**  | 16            | 2             | **32**             | ✅ STABLE       |
 | **Initial LoRA Run**  | 64            | 8             | **512**            | ❌ OOM (Host RAM) |
-| **Updated LoRA Run**  | 16            | 4             | **64**             | ✅ STABLE       |
+| **Updated LoRA Run**  | 16            | 4             | **64**             | ❌ OOM (Transient) |
+| **2-GPU A100 Run**    | 16            | 8             | **128**            | ✅ STABLE       |
+
+## Systemic Root Cause Analysis: LoRA vs. Full Fine-tuning
+
+The primary bottleneck for scaling Vision-RL on Node 1 (8 GPUs, 250GB RAM) is the **RAM-per-GPU ratio**, which is only **~31GB**.
+
+### 1. The Fixed Overhead (The "Ghost" in the Machine)
+In `actor_rollout_ref` mode, `verl` loads a **Reference Model** copies for every worker. By default, these are wrapped in `CPUOffload`, meaning they live entirely in **System RAM**.
+*   **Cost:** ~7GB per worker.
+*   **Total:** 7GB × 8 GPUs = **56GB** (Hidden fixed cost before any data is processed).
+
+### 2. Transient Replication (The LoRA "Last Straw")
+*   **Full Fine-tuning:** Parameters are sharded by FSDP *immediately* during load. Each worker only keeps $1/8^{\text{th}}$ of the model in RAM (~0.9GB).
+*   **LoRA Training:** Initializing a `PeftModel` requires loading the **full base model** into CPU memory before adapters are created. This creates a **transitory 7GB peak per worker**.
+*   **The Math of Failure:** 7GB (Ref) + 7GB (LoRA Init) + 15GB (vLLM & Data) = **~29GB per worker**.
+*   On 8 GPUs: 29GB × 8 = **232GB**. Combined with OS and Ray overhead, this hits the 250GB limit.
+
+### 3. Hardware Strategy: High RAM per GPU
+The solution is not more total RAM, but more **RAM per process**.
+*   **Server A (8 GPUs, 250GB RAM):** 31GB per GPU. (FAIL for LoRA)
+*   **Server B (2 GPUs, 210GB RAM):** 105GB per GPU. (STABLE for LoRA)
 
 ## Key Learnings
 
@@ -52,13 +73,16 @@ In a single **Global Step** with $P=16, G=4, M=16$:
     *   Perform **4 gradient updates** (64 / 16 = 4) to the model weights.
     *   If a gradient update is too large for GPU VRAM, it is further split by the **PPO Micro-batch Size**.
 
-## Recommended Settings for 8-GPU Node (250GB RAM)
-To maintain stability with Qwen2.5-VL-3B:
+## Recommended Deployment Strategy
 
-*   **Prompts per step ($P$):** 16 (Keeps vision data manageable in Ray/Host memory).
-*   **Group Size ($G$):** 4 to 8 (Essential for GRPO "reasoning" stability).
-*   **vLLM Util:** 0.7 - 0.75 (Safe for LoRA, lower to 0.4 for Full Fine-tuning).
-*   **`val_before_train`:** **Set to False**. The initial validation broadcast of 200+ images is the most likely time for a System RAM spike.
+### For Node 1 (8 GPUs / 250GB RAM)
+*   **USE FULL FINE-TUNING.** It is more memory-efficient during initialization due to immediate sharding.
+*   If LoRA is mandatory: Reduce to **4 GPUs** (`CUDA_VISIBLE_DEVICES=0,1,2,3`) to double the RAM-per-GPU headroom.
+
+### For A100 Node (2 GPUs / 210GB RAM)
+*   **USE LORA.** You have 105GB per GPU, plenty of room for transient peaks.
+*   **Group Size ($G$):** 8 (Safe to increase for better reasoning metrics).
+*   **vLLM Util:** 0.75 (Safe given 80GB VRAM).
 
 ---
-**Note:** To prioritize getting the script running, use $P=16, G=4$. If stable, trial $G=8$ with $P=16$ for better reasoning quality.
+**Conclusion:** Total System RAM must be $\ge (\text{Worker Overhead} \times \text{Number of GPUs})$. For Qwen2.5-VL-3B LoRA, aim for $> 50\text{GB}$ per GPU.
