@@ -17,8 +17,8 @@ def make_serializable(obj):
         return [make_serializable(v) for v in obj]
     return obj
 
-DATA_PATH = ["/home/debarpanb1/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test.parquet", 
-"/home/debarpanb1/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/train.parquet"]
+DATA_PATH = ["/home/debarpanb1/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test_with_idk.parquet", 
+"/home/debarpanb1/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/train_with_idk.parquet"]
 
 for data_path in DATA_PATH:
     print("\n" + "="*60)
