@@ -4,10 +4,7 @@
 
 
 # Command to merge sharded model parameters
-# python3 /home/debarpanb1/kalashkala/TruthRL/verl/model_merger.py merge 
-#     --backend fsdp 
-#     --local_dir /home/debarpanb1/kalashkala/TruthRL/58-Cluster-scripts/checkpoints/TruthRL_VSR/vsr_qwen2_5_vl_3b_8gpu_optimized/global_step_230/actor 
-#     --target_dir /home/debarpanb1/kalashkala/TruthRL/58-Cluster-scripts/checkpoints/TruthRL_VSR/vsr_qwen2_5_vl_3b_8gpu_optimized/global_step_230/actor_merged
+# python3 -m verl.model_merger merge --backend fsdp --local_dir /home/debarpanb1/kalashkala/TruthRL/58-Cluster-scripts/checkpoints/TruthRL_VSR/vsr_qwen2_5_vl_3b_8gpu_optimized/global_step_230/actor --target_dir /home/debarpanb1/kalashkala/TruthRL/58-Cluster-scripts/checkpoints/TruthRL_VSR/vsr_qwen2_5_vl_3b_8gpu_optimized/global_step_230/actor_merged
 
 
 # Examples:
