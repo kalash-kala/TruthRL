@@ -13,6 +13,10 @@ export RAY_USAGE_STATS_ENABLED=0
 export NCCL_IB_DISABLE=1
 export NCCL_SOCKET_IFNAME='^lo,docker,virbr,br-,veth'
 
+export MKL_SERVICE_FORCE_INTEL=1
+export MKL_THREADING_LAYER=GNU
+export RAY_memory_usage_threshold=0.98
+
 # Using all 8 available A100 GPUs
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export TOKENIZERS_PARALLELISM=true
@@ -26,8 +30,8 @@ REWARD_FN_PATH=/home/debarpanb1/kalashkala/TruthRL/training/verl/verl/utils/rewa
 # LoRA-adjusted hyperparameters
 # Higher LR is safe with LoRA since only adapter weights are updated
 LR=5e-6
-BSZ=32
-GROUP_SIZE=8
+BSZ=8
+GROUP_SIZE=4
 ROLLOUT_TP_SIZE=1
 
 # LoRA configuration
@@ -36,8 +40,8 @@ LORA_ALPHA=32
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=$DATA_DIR/train.parquet \
-    data.val_files=$DATA_DIR/test.parquet \
+    data.train_files=$DATA_DIR/train_with_idk.parquet \
+    data.val_files=$DATA_DIR/validation_with_idk.parquet \
     data.train_batch_size=$BSZ \
     data.max_prompt_length=1024 \
     data.max_response_length=768 \
@@ -48,7 +52,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.trust_remote_code=True \
     actor_rollout_ref.actor.optim.lr=$LR \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=$BSZ \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.model.lora_rank=$LORA_RANK \
@@ -64,12 +68,13 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=$ROLLOUT_TP_SIZE \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.75 \
     actor_rollout_ref.rollout.n=$GROUP_SIZE \
     actor_rollout_ref.rollout.enforce_eager=True \
     actor_rollout_ref.rollout.engine_kwargs.vllm.disable_mm_preprocessor_cache=True \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
-    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    actor_rollout_ref.ref.fsdp_config.param_offload=False \
+    trainer.val_before_train=False \
     algorithm.use_kl_in_reward=False \
     algorithm.kl_ctrl.type=adaptive \
     algorithm.kl_ctrl.kl_coef=0.02 \
@@ -80,11 +85,11 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=console \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_qwen2_5_vl_3b_8gpu_lora_n8" \
+    trainer.experiment_name="vsr_qwen2_5_vl_3b_8gpu_lora_bsz8lr5e6_groupsize4" \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
-    trainer.save_freq=10 \
-    trainer.test_freq=46 \
+    trainer.save_freq=50 \
+    trainer.test_freq=100 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
-    trainer.total_epochs=5 "$@"
+    trainer.total_epochs=1 "$@"
