@@ -568,6 +568,11 @@ class RayPPOTrainer:
         self.total_training_steps = total_training_steps
         print(f"Total training steps: {self.total_training_steps}")
 
+        # Expose training schedule to reward functions via env vars
+        self.steps_per_epoch = len(self.train_dataloader)
+        os.environ["VERL_TOTAL_STEPS_PER_EPOCH"] = str(self.steps_per_epoch)
+        os.environ["VERL_TOTAL_TRAINING_STEPS"] = str(self.total_training_steps)
+
         try:
             OmegaConf.set_struct(self.config, True)
             with open_dict(self.config):
@@ -1204,6 +1209,9 @@ class RayPPOTrainer:
                     batch.meta_info["global_token_num"] = torch.sum(batch.batch["attention_mask"], dim=-1).tolist()
 
                     with marked_timer("reward", timing_raw, color="yellow"):
+                        # Expose current step to reward functions via env var
+                        os.environ["VERL_GLOBAL_STEP"] = str(self.global_steps)
+
                         # compute reward model score
                         if self.use_rm:
                             reward_tensor = self.rm_wg.compute_rm_score(batch)
