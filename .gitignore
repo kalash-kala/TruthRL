@@ -14,6 +14,7 @@ slurm_logs/logs/*.log
 slurm_logs/errors/*.out
 slurm_logs/errors/*.err
 slurm_logs/errors/*.log
+tensorboard_log/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
