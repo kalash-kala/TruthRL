@@ -1,12 +1,12 @@
 #!/bin/bash
 # ============================================================================
-# VSR + Qwen2.5-VL-3B WITH LoRA — 2× A100 Server
+# VSR (LEXICAL DYNAMIC) + Qwen2.5-VL-3B WITH LoRA — 2× A100 Server
 # ============================================================================
 # Optimized for: 2 GPUs (A100 80GB), ~210GB System RAM
 # RAM-per-GPU: ~105GB (vs 31GB on Node 1) — LoRA safe
 #
 # Run with:
-#   nohup bash train_grpo_vsr_qwen2_5_vl_3b_2gpu_a100_lora.sh > train_2gpu_a100_lora.log 2>&1 &
+#   nohup bash train_grpo_vsr_lexical_dynamic_qwen2_5_vl_3b_2gpu_a100_lora.sh > train_2gpu_a100_lora_dynamic.log 2>&1 &
 # ============================================================================
 
 set -x
@@ -34,7 +34,7 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 # ============================================================================
 DATA_DIR=/root/Desktop/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet
 MODEL_PATH=/root/Desktop/kalashkala/Models/Qwen2.5-VL-3B-Instruct
-REWARD_FN_PATH=/root/Desktop/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vsr_lexical.py
+REWARD_FN_PATH=/root/Desktop/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vsr_lexical_dynamic.py
 
 # ============================================================================
 # Hyperparameters
@@ -56,7 +56,7 @@ LR=1e-5
 BSZ=8
 GROUP_SIZE=4
 ROLLOUT_TP_SIZE=1
-EPOCHS=3
+EPOCHS=1
 
 # LoRA configuration
 LORA_RANK=64
@@ -119,7 +119,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','tensorboard'] \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_qwen2_5_vl_3b_2gpu_a100_lora_bsz8_lr1e5_gs4_r64_v2" \
+    trainer.experiment_name="vsr_lexical_dynamic_qwen2_5_vl_3b_2gpu_a100_lora_bsz8_lr1e5_gs4_r64" \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq=250 \
