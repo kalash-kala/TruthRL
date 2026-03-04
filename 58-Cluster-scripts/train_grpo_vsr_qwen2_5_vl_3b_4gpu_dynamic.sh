@@ -68,11 +68,11 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=console \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_qwen2_5_vl_3b_4gpu_dynamic_bsz8_lr1e6_groupsize4" \
+    trainer.experiment_name="vsr_qwen2_5_vl_3b_4gpu_dynamic_bsz8_lr1e6_groupsize4_epoch1" \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.save_freq=50 \
     trainer.test_freq=25 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
-    trainer.total_epochs=2 "$@"
+    trainer.total_epochs=1 "$@"
