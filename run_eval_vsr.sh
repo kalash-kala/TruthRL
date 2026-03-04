@@ -21,26 +21,32 @@
 # Usage: ./run_eval_vsr.sh -m <model_path> [-n <run_name>] [-b]
 
 # Default Values
-MODEL_PATH="/home/debarpanb1/models/Qwen2.5-VL-3B-Instruct"
+MODEL_PATH="/root/Desktop/kalashkala/Models/Qwen2.5-VL-3B-Instruct"
 PROCESSOR_PATH=""  # If empty, defaults to MODEL_PATH inside evaluate_vsr.py
 RUN_NAME="eval_vsr_$(date +%Y%m%d_%H%M%S)"
+OUTPUT_DIR="results/vsr_eval"
 BACKGROUND=false
-DATA_PATH="/home/debarpanb1/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test_with_idk.parquet"
+DISABLE_TIMESTAMP=false
+DATA_PATH="/root/Desktop/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test_with_idk.parquet"
 
 usage() {
-    echo "Usage: $0 -m <model_path> [-p <processor_path>] [-n <run_name>] [-b]"
+    echo "Usage: $0 -m <model_path> [-p <processor_path>] [-n <run_name>] [-o <output_dir>] [-t] [-b]"
     echo "  -m: Path to the model checkpoint or huggingface model (REQUIRED)"
     echo "  -p: Path to processor/tokenizer (optional; use base model path for VeRL checkpoints)"
     echo "  -n: Name for this evaluation run (default: eval_vsr_TIMESTAMP)"
+    echo "  -o: Directory to save results (default: results/vsr_eval)"
+    echo "  -t: Disable timestamp in output sub-directory name"
     echo "  -b: Run in background using nohup"
     exit 1
 }
 
-while getopts "m:p:n:b" opt; do
+while getopts "m:p:n:o:tb" opt; do
     case ${opt} in
         m ) MODEL_PATH=$OPTARG ;;
         p ) PROCESSOR_PATH=$OPTARG ;;
         n ) RUN_NAME=$OPTARG ;;
+        o ) OUTPUT_DIR=$OPTARG ;;
+        t ) DISABLE_TIMESTAMP=true ;;
         b ) BACKGROUND=true ;;
         \? ) usage ;;
     esac
@@ -51,7 +57,10 @@ if [ -z "$MODEL_PATH" ]; then
     usage
 fi
 
-CMD="python3 evaluation/evaluate_vsr.py --model_path $MODEL_PATH --name $RUN_NAME --data_path $DATA_PATH"
+CMD="python3 evaluation/evaluate_vsr.py --model_path $MODEL_PATH --name $RUN_NAME --data_path $DATA_PATH --output_dir $OUTPUT_DIR"
+if [ "$DISABLE_TIMESTAMP" = true ]; then
+    CMD="$CMD --no_timestamp"
+fi
 if [ -n "$PROCESSOR_PATH" ]; then
     CMD="$CMD --processor_path $PROCESSOR_PATH"
 fi

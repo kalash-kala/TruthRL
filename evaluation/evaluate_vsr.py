@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=1, help="Inference batch size")
     parser.add_argument("--max_new_tokens", type=int, default=1024, help="Max tokens to generate")
     parser.add_argument("--name", type=str, default="eval_run", help="Name of the evaluation run (for logging)")
+    parser.add_argument("--no_timestamp", action="store_true", help="Disable timestamp in output directory name")
     return parser.parse_args()
 
 def normalize_text(text):
@@ -45,7 +46,10 @@ def main():
     
     # Setup Output Directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = os.path.join(args.output_dir, f"{args.name}_{timestamp}")
+    if args.no_timestamp:
+        run_dir = os.path.join(args.output_dir, args.name)
+    else:
+        run_dir = os.path.join(args.output_dir, f"{args.name}_{timestamp}")
     os.makedirs(run_dir, exist_ok=True)
     
     print(f"==================================================")
