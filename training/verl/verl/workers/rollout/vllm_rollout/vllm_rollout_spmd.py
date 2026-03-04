@@ -361,13 +361,13 @@ class vLLMRollout(BaseRollout):
             raise RuntimeError("vllm sharding manager is not work properly.")
 
         # [TruthRL DEBUG] Check if multi_modal_data is present
-        print(f"[DEBUG] Batch keys: {non_tensor_batch.keys()}")
-        print(f"[DEBUG] Has multi_modal_data: {'multi_modal_data' in non_tensor_batch}")
+        # print(f"[DEBUG] Batch keys: {non_tensor_batch.keys()}")
+        # print(f"[DEBUG] Has multi_modal_data: {'multi_modal_data' in non_tensor_batch}")
         if "multi_modal_data" in non_tensor_batch:
-            print(f"[DEBUG] Number of multi_modal_data items: {len(non_tensor_batch['multi_modal_data'])}")
+            # print(f"[DEBUG] Number of multi_modal_data items: {len(non_tensor_batch['multi_modal_data'])}")
             if len(non_tensor_batch['multi_modal_data']) > 0:
                 first_mm = non_tensor_batch['multi_modal_data'][0]
-                print(f"[DEBUG] First multi_modal_data keys: {first_mm.keys() if isinstance(first_mm, dict) else type(first_mm)}")
+                # print(f"[DEBUG] First multi_modal_data keys: {first_mm.keys() if isinstance(first_mm, dict) else type(first_mm)}")
 
         if "multi_modal_data" in non_tensor_batch:
             vllm_inputs = []
@@ -384,13 +384,14 @@ class vLLMRollout(BaseRollout):
                 boi_id = getattr(self.model_hf_config, "boi_token_index", None)
                 soft_id = getattr(self.model_hf_config, "image_token_index", None)
                 if debug_idx == 0:  # Only log first item to avoid spam
-                    print(f"[DEBUG] Raw prompt length: {len(raw_prompt_ids)}, Collapsed length: {len(collapsed_ids)}")
-                    print(f"[DEBUG] BOI token ({boi_id}) in collapsed IDs: {boi_id in collapsed_ids}")
-                    print(f"[DEBUG] Soft token ({soft_id}) in collapsed IDs: {soft_id in collapsed_ids}")
-                    print(f"[DEBUG] First 30 collapsed IDs: {collapsed_ids[:30]}")
-                    print(f"[DEBUG] Multi-modal data keys: {multi_modal_data.keys()}")
+                    # print(f"[DEBUG] Raw prompt length: {len(raw_prompt_ids)}, Collapsed length: {len(collapsed_ids)}")
+                    # print(f"[DEBUG] BOI token ({boi_id}) in collapsed IDs: {boi_id in collapsed_ids}")
+                    # print(f"[DEBUG] Soft token ({soft_id}) in collapsed IDs: {soft_id in collapsed_ids}")
+                    # print(f"[DEBUG] First 30 collapsed IDs: {collapsed_ids[:30]}")
+                    # print(f"[DEBUG] Multi-modal data keys: {multi_modal_data.keys()}")
                     if 'image' in multi_modal_data:
-                        print(f"[DEBUG] Number of images: {len(multi_modal_data['image']) if isinstance(multi_modal_data['image'], list) else 1}")
+                        pass
+                        # print(f"[DEBUG] Number of images: {len(multi_modal_data['image']) if isinstance(multi_modal_data['image'], list) else 1}")
                 
                 vllm_inputs.append({"prompt_token_ids": collapsed_ids, "multi_modal_data": multi_modal_data})
         else:

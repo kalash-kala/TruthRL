@@ -32,7 +32,8 @@ def _check_cuda_available():
     import os
     available = torch.cuda.is_available()
     if not available:
-        print(f"[DEBUG DEVICE] CUDA not available! PID={os.getpid()}, CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')}")
+        # print(f"[DEBUG DEVICE] CUDA not available! PID={os.getpid()}, CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')}")
+        pass
     return available
 
 
