@@ -3,6 +3,10 @@
 # Using 8 GPUs with LoRA-optimized hyperparameters
 # Run with: nohup bash train_grpo_vsr_qwen2_5_vl_3b_8gpu_lora.sh > train_qwen2_5_vl_3b_8gpu_lora.log 2>&1 &
 
+# Clean up old Ray sessions and temp files before starting
+ray stop
+rm -rf /tmp/ray/*
+
 set -x
 export WANDB_MODE=disabled
 export HYDRA_FULL_ERROR=1

@@ -3,6 +3,10 @@
 # Using 4 GPUs (4,5,6,7) and optimized parameters for Qwen2.5-VL-3B
 # Run with: nohup bash train_grpo_vsr_qwen2_5_vl_3b_4gpu_dynamic.sh > train_qwen2_5_vl_3b_4gpu_dynamic.log 2>&1 &
 
+# Clean up old Ray sessions and temp files before starting
+ray stop
+rm -rf /tmp/ray/*
+
 set -x
 export WANDB_MODE=disabled
 export HYDRA_FULL_ERROR=1

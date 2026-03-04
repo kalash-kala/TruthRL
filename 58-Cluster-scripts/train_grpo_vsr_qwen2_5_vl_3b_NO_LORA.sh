@@ -2,6 +2,10 @@
 # VSR + Qwen2.5-VL-3B WITHOUT LoRA
 # Using the locally downloaded model
 
+# Clean up old Ray sessions and temp files before starting
+ray stop
+rm -rf /tmp/ray/*
+
 set -x
 export WANDB_MODE=disabled
 export HYDRA_FULL_ERROR=1
