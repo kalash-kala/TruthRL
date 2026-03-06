@@ -8,6 +8,10 @@
 # Run with:
 #   nohup bash train_grpo_vsr_lexical_dynamic_qwen2_5_vl_3b_2gpu_a100_lora.sh > train_2gpu_a100_lora_dynamic.log 2>&1 &
 # ============================================================================
+# Clean up old Ray sessions and temp files before starting
+ray stop
+rm -rf /tmp/ray/*
+
 
 set -x
 export WANDB_MODE=disabled
@@ -25,6 +29,7 @@ export MKL_THREADING_LAYER=GNU
 export RAY_memory_usage_threshold=0.95
 
 # 2× A100 GPUs
+export NUM_GPUS=2
 export CUDA_VISIBLE_DEVICES=0,1
 export TOKENIZERS_PARALLELISM=true
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -52,11 +57,11 @@ LR=1e-5
 #   normalized_mini_batch = ppo_mini_batch_size × G / world_size
 #                         = 8 × 8 / 2 = 32
 #   gradient_accumulation_steps = 32 / ppo_micro_batch_size_per_gpu
-#                               = 32 / 4 = 8 updates
+#                               = 32 / 2 = 16 updates
 BSZ=8
-GROUP_SIZE=4
+GROUP_SIZE=8
 ROLLOUT_TP_SIZE=1
-EPOCHS=1
+EPOCHS=3
 
 # LoRA configuration
 LORA_RANK=64
@@ -119,11 +124,12 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','tensorboard'] \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_lexical_dynamic_qwen2_5_vl_3b_2gpu_a100_lora_bsz8_lr1e5_gs4_r64" \
-    trainer.n_gpus_per_node=2 \
+    trainer.experiment_name="vsr_lexical_dynamic_qwen2_5_vl_3b_2gpu_a100_lora_bsz8_lr1e5_gs8_r128_alpha128" \
+    trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
     trainer.save_freq=250 \
     trainer.test_freq=50 \
+    trainer.default_local_dir='/data/kalashkala/checkpoints/${trainer.project_name}/${trainer.experiment_name}' \
     trainer.max_actor_ckpt_to_keep=$EPOCHS \
     trainer.max_critic_ckpt_to_keep=$EPOCHS \
     trainer.total_epochs=$EPOCHS "$@"

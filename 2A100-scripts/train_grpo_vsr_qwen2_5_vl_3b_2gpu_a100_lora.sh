@@ -8,6 +8,10 @@
 # Run with:
 #   nohup bash train_grpo_vsr_qwen2_5_vl_3b_2gpu_a100_lora.sh > train_2gpu_a100_lora.log 2>&1 &
 # ============================================================================
+# Clean up old Ray sessions and temp files before starting
+ray stop
+rm -rf /tmp/ray/*
+
 
 set -x
 export WANDB_MODE=disabled
@@ -59,7 +63,7 @@ ROLLOUT_TP_SIZE=1
 EPOCHS=3
 
 # LoRA configuration
-LORA_RANK=64
+LORA_RANK=128
 LORA_ALPHA=128
 
 # Avoid CUDA fragmentation
@@ -119,11 +123,12 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','tensorboard'] \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_qwen2_5_vl_3b_2gpu_a100_lora_bsz8_lr1e5_gs4_r64_v2" \
+    trainer.experiment_name="vsr_qwen2_5_vl_3b_2gpu_a100_lora_bsz8_lr1e5_gs4_r128_alpha128" \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq=250 \
     trainer.test_freq=50 \
+    trainer.default_local_dir='/data/kalashkala/checkpoints/${trainer.project_name}/${trainer.experiment_name}' \
     trainer.max_actor_ckpt_to_keep=$EPOCHS \
     trainer.max_critic_ckpt_to_keep=$EPOCHS \
     trainer.total_epochs=$EPOCHS "$@"
