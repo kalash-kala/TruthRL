@@ -28,8 +28,9 @@ export MKL_SERVICE_FORCE_INTEL=1
 export MKL_THREADING_LAYER=GNU
 export RAY_memory_usage_threshold=0.95
 
-# 8× GPUs
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+# 4× GPUs
+export NUM_GPUS=4
+export CUDA_VISIBLE_DEVICES=4,5,6,7
 export TOKENIZERS_PARALLELISM=true
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
@@ -110,8 +111,8 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger="['console','tensorboard']" \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_qwen2_5_vl_3b_8gpu_lora_safe_dynamic" \
-    trainer.n_gpus_per_node=8 \
+    trainer.experiment_name="vsr_qwen2_5_vl_3b_8gpu_lora_safe_dynamic_rank128_alpha128_bsz8_gs4_lr1e5_epochs3" \
+    trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
     trainer.save_freq=250 \
     trainer.test_freq=50 \

@@ -21,6 +21,7 @@ export MKL_SERVICE_FORCE_INTEL=1
 export MKL_THREADING_LAYER=GNU
 
 # Using free GPUs: 4, 5, 6, 7
+export NUM_GPUS=4
 export CUDA_VISIBLE_DEVICES=4,5,6,7
 export TOKENIZERS_PARALLELISM=true
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -31,9 +32,10 @@ MODEL_PATH=/home/debarpanb1/models/Qwen2.5-VL-3B-Instruct
 REWARD_FN_PATH=/home/debarpanb1/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vsr_lexical_dynamic.py
 
 # Hyperparameters matched to gemma_4b script
+EPOCHS=1
 LR=1e-6
 BSZ=8
-GROUP_SIZE=4
+GROUP_SIZE=8
 ROLLOUT_TP_SIZE=1
 
 python3 -m verl.trainer.main_ppo \
@@ -72,11 +74,9 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=console \
     trainer.project_name="TruthRL_VSR" \
-    trainer.experiment_name="vsr_qwen2_5_vl_3b_4gpu_dynamic_bsz8_lr1e6_groupsize4_epoch1" \
-    trainer.n_gpus_per_node=4 \
+    trainer.experiment_name="vsr_qwen2_5_vl_3b_4gpu_dynamic_bsz8_lr1e6_groupsize8_epoch1" \
+    trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
-    trainer.save_freq=50 \
-    trainer.test_freq=25 \
-    trainer.max_actor_ckpt_to_keep=1 \
-    trainer.max_critic_ckpt_to_keep=1 \
-    trainer.total_epochs=1 "$@"
+    trainer.save_freq=250 \
+    trainer.test_freq=50 \
+    trainer.total_epochs=$EPOCHS "$@"
