@@ -1,8 +1,6 @@
-
 import re
 import os
 import threading
-
 
 def normalize_answer(s):
     """
@@ -90,19 +88,19 @@ _step_tracker = _StepTracker()
 def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
                   score=1.0, **kwargs):
     """
-    Lexical reward function for VSR dataset — with **dynamic negative reward**.
+    Lexical reward function for VSR dataset — with **parameterized dynamic negative reward**.
 
-    Identical to `vsr_lexical.compute_score` except that the penalty for an
-    incorrect / hallucinated answer is:
+    Identical to `vsr_lexical_dynamic.compute_score` except that the penalty for an
+    incorrect / hallucinated answer includes a `k` factor:
 
-        negative_reward = -1 * (1 + current_step / total_steps_per_epoch)
+        negative_reward = -1 * (1 + k * current_step / total_steps_per_epoch)
 
     This means:
-        • Early in training the penalty is close to 0 → the model can explore
-          freely without being heavily punished for wrong answers.
-        • As training progresses the penalty grows toward -1 → the model is
+        • `k` controls how aggressively the penalty scales over time.
+        • Early in training the penalty is close to -1.
+        • As training progresses the penalty grows toward -(1 + k) → the model is
           progressively incentivised to abstain (say "I don't know") rather than
-          hallucinate.
+          hallucinate, pushing expected return lower at high confidence levels.
 
     Args:
         solution_str: The model's predicted output string.
@@ -112,16 +110,13 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
         score: Score for correct answer (default 1.0).
         **kwargs: Additional keyword arguments.  The following are recognised:
             total_steps_per_epoch (int): Total optimizer steps in one epoch.
-            batch_size (int): Number of samples per training step (for the
-                fallback step counter when VERL_GLOBAL_STEP env var is absent).
+            batch_size (int): Number of samples per training step.
+            k_factor (float): The multiplication factor for the dynamic penalty.
+                Can also be set via VERL_DYNAMIC_PENALTY_K env var.
 
     Returns:
         dict with keys:
-            score (float):
-                +1.0 if prediction matches ground truth exactly.
-                 0.0 if prediction is "i don't know" (or variation).
-                 -(1 + current_step / total_steps_per_epoch) if prediction is
-                 incorrect or hallucinated (ranges from -1 to -2).
+            score (float): The calculated reward.
             accuracy (float): 1.0 if correct, 0.0 otherwise.
             negative_reward (float): the raw dynamic penalty (for logging).
     """
@@ -137,10 +132,18 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
         batch_size_kwarg=batch_size_kwarg,
     )
 
+    # -- Resolve k factor --
+    k_factor = kwargs.get("k_factor", None)
+    if k_factor is None:
+        env_k = os.environ.get("VERL_DYNAMIC_PENALTY_K")
+        k_factor = float(env_k) if env_k else 1.0
+    else:
+        k_factor = float(k_factor)
+
     # -- Calculate Dynamic Negative Reward --
     # Calculate ratio (can exceed 1.0 if training for multiple epochs)
     progress_ratio = current_step / max(total_steps, 1)
-    negative_reward = -1.0 * (1.0 + progress_ratio)
+    negative_reward = -1.0 * (1.0 + k_factor * progress_ratio)
 
     # -- 1. Extract Ground Truth --
     target = ground_truth
@@ -153,16 +156,17 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
         answer_to_check = box_match.group(1)
     else:
         # Penalise for missing out the /box[]/ format constraint.
+        # Use format_score if it's explicitly a penalty (< 0), otherwise use the dynamic negative_reward.
         penalty = format_score if format_score < 0 else negative_reward
         
         # Logging for format failure
-        log_path = "/home/debarpanb1/kalashkala/TruthRL/58-Cluster-scripts/dynamic_reward_debug.log"
+        log_path = "/home/debarpanb1/kalashkala/TruthRL/dynamic_reward_debug.log"
         if not os.path.exists(os.path.dirname(log_path)):
-            log_path = "/home/kalashkala/TruthRL/58-Cluster-scripts/dynamic_reward_debug.log"
+            log_path = "/home/kalashkala/TruthRL/dynamic_reward_debug.log"
         try:
             if os.path.exists(os.path.dirname(log_path)):
                 with open(log_path, "a") as f:
-                    f.write(f"[REWARD DEBUG - FORMAT MISSING] step: {current_step}/{total_steps} | penalty: {penalty:.4f}\n")
+                    f.write(f"[REWARD DEBUG K-FACTOR - FORMAT MISSING] step: {current_step}/{total_steps} | penalty: {penalty:.4f}\n")
         except Exception:
             pass
             
@@ -184,7 +188,17 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
     # -- 6. Incorrect / Hallucinated Answer --
     # The dynamic negative reward was calculated above.
 
-    with open("/home/debarpanb1/kalashkala/TruthRL/58-Cluster-scripts/dynamic_reward_debug.log", "a") as f:
-        f.write(f"[REWARD DEBUG] step: {current_step}/{total_steps} | ratio: {progress_ratio:.4f} | neg_reward: {negative_reward:.4f}\n")
+    # Logging
+    log_path = "/home/debarpanb1/kalashkala/TruthRL/dynamic_reward_debug.log"
+    # Fallback to current workspace if the original path doesn't exist
+    if not os.path.exists(os.path.dirname(log_path)):
+        log_path = "/home/kalashkala/TruthRL/dynamic_reward_debug.log"
+
+    try:
+        if os.path.exists(os.path.dirname(log_path)):
+            with open(log_path, "a") as f:
+                f.write(f"[REWARD DEBUG K-FACTOR] step: {current_step}/{total_steps} | ratio: {progress_ratio:.4f} | k: {k_factor:.2f} | neg_reward: {negative_reward:.4f}\n")
+    except Exception:
+        pass
 
     return {'score': negative_reward, 'accuracy': 0.0, 'negative_reward': negative_reward}

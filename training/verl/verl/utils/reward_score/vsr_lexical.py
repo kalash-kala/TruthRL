@@ -47,12 +47,14 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
     if isinstance(ground_truth, dict):
         target = ground_truth.get("ground_truth", "False")
     
-    # 2. Extract Answer from Box or Fallback
+    # 2. Check Format & Extract Answer
     box_match = re.search(r'/box\[(.*?)\]/', solution_str)
     if box_match:
         answer_to_check = box_match.group(1)
     else:
-        answer_to_check = solution_str
+        # Penalise for missing out the /box[]/ format constraint.
+        penalty = format_score if format_score < 0 else -1.0
+        return {'score': penalty, 'accuracy': 0.0}
     
     # 3. Normalize Prediction
     pred_str = normalize_answer(answer_to_check)
