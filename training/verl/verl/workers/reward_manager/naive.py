@@ -81,6 +81,7 @@ class NaiveRewardManager(AbstractRewardManager):
             extra_info = data_item.non_tensor_batch.get("extra_info", {})
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
+            extra_info["prompt_text"] = prompt_str  # pass decoded prompt to reward fn
 
             score = self.compute_score(
                 data_source=data_source,
