@@ -1,0 +1,217 @@
+Lazy Refusals:
+[
+  {
+    "caption": "The car is far from the chair.",
+    "ground_truth": "False",
+    "model_box": "I don't know",
+    "reasoning": "To determine if the car is far from the chair, we need to consider the relative positions of the objects in the image. The dog is inside the car, looking out the window with its head sticking out. The chair is visible in the foreground, suggesting it is closer to the viewer than the car. Therefore, the car is not far from the chair; it is actually closer to the viewer.",
+    "lazy_refusal_reason": "The reasoning explicitly deduces that 'the car is not far from the chair', arriving at a definitive logical conclusion. However, instead of outputting the final answer based on its own deduction, the model simply outputs a refusal ('I don't know')."
+  },
+  {
+    "caption": "The bowl is under the sandwich.",
+    "ground_truth": "False",
+    "model_box": "I don't know",
+    "reasoning": "To determine if the bowl is under the sandwich, we need to analyze the positions of the objects in the image. The bowl appears to be placed next to the sandwich on the tray. The sandwich is positioned on top of the paper towel, which is on top of the tray. Therefore, the bowl is not directly under the sandwich; it is adjacent to it.",
+    "lazy_refusal_reason": "The reasoning reaches a clear and final conclusion that 'the bowl is not directly under the sandwich; it is adjacent to it'. Despite resolving the query, it lazily fails to predict 'False' and instead outputs a refusal ('I don't know')."
+  },
+  {
+    "caption": "The pizza is in the dog.",
+    "ground_truth": "True",
+    "model_box": "I don't know",
+    "reasoning": "The statement claims that the pizza is in the dog. However, the image shows a puppy holding a toy shaped like a slice of pizza, not the actual pizza itself. The puppy is not consuming the toy; it's merely holding it. Therefore, the pizza is not physically inside the dog.",
+    "lazy_refusal_reason": "The reasoning thoroughly evaluates the scene and makes a strong conclusion ('the pizza is not physically inside the dog'). Yet, rather than providing a definitive answer based on this evaluation, the model abstains and outputs a refusal ('I don't know')."
+  }
+]
+
+Lucky Guesses:
+[
+  {
+    "caption": "The keyboard is on top of the cat.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The image shows a cat lying on a computer keyboard. The keyboard is positioned directly under the cat's body, with its keys visible beneath the cat's paws. This arrangement suggests that the keyboard is resting on top of the cat.",
+    "lucky_guess_reason": "The reasoning explicitly concludes that the layout 'suggests that the keyboard is resting on top of the cat' (which corresponds to True), but the final output is False (which contradicts the reasoning but correctly matches the ground truth)."
+  },
+  {
+    "caption": "The cat is left of the couch.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The cat is positioned in front of the couch, with its body covering most of the laptop screen. The couch is visible behind the cat, indicating that the cat is to the left of it.",
+    "lucky_guess_reason": "The reasoning concludes by stating 'indicating that the cat is to the left of it' (implying the caption is True). The model's final output was False, somehow getting the correct answer despite its opposite reasoning."
+  },
+  {
+    "caption": "The teddy bear is touching the bed.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The teddy bear is positioned among the books on the bed, with its head resting on one of the books. The bed's surface is visible around the teddy bear, indicating it is indeed touching the bed.",
+    "lucky_guess_reason": "The reasoning asserts that the bear 'is indeed touching the bed', logically leading to a True answer. The model instead outputs False, miraculously matching the ground truth despite its own chain of thought."
+  },
+  {
+    "caption": "The zebra is facing the car.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The zebra is standing in front of a chain-link fence, which suggests it is in an enclosed area, possibly at a zoo or a wildlife park. The presence of people in the background indicates that this is a public space where animals are displayed for viewing. The zebra's position relative to the fence and the people suggests it is facing the direction of the people, likely towards the car in the background.",
+    "lucky_guess_reason": "The model deduces that the zebra is 'facing the direction of the people, likely towards the car' (would be True), but somehow outputs False as the final answer, guessing correctly by accident."
+  },
+  {
+    "caption": "The car is far from the chair.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The car is shown in the background of the image, with the dog's reflection in the side mirror being the main focus. The chair is located inside the car, closer to the viewer. The distance between the car and the chair is not specified, but it is clear that the car is farther away.",
+    "lucky_guess_reason": "The reasoning explicitly claims 'it is clear that the car is farther away', setting up for a True answer. However, the model outputs a False in the final box, which by luck matches the ground truth."
+  },
+  {
+    "caption": "The mouse is behind the teddy bear.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The mouse is located to the right of the teddy bear, positioned on a desk. The teddy bear is being held by the woman, and the mouse is not visible in the image.",
+    "lucky_guess_reason": "The reasoning argues that the mouse is 'to the right' rather than behind, and says it is 'not visible', suggesting a False answer. Despite this contradictory reasoning, the model outputs True and gets the right answer by luck."
+  }
+]
+
+Strongly supported:
+[
+  {
+    "caption": "The banana is at the left side of the orange.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The banana is positioned to the left of the orange, with its curved shape and yellow color clearly visible."
+  },
+  {
+    "caption": "The dog is inside the car.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The image shows a dog standing on a skateboard in an outdoor setting, not inside a car."
+  },
+  {
+    "caption": "The teddy bear is over the bench.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The teddy bear is positioned on top of a wooden surface, which appears to be a bench or a similar piece of furniture."
+  },
+  {
+    "caption": "The dog is behind the apple.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The dog is positioned to the right of the Christmas tree and is not near any apple. The dog appears to be looking at the tree, which is not an apple."
+  },
+  {
+    "caption": "The parking meter is in front of the car.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The parking meter is a tall, gray structure with a digital display and buttons, positioned in front of a parked car. The car's hood and part of its windshield are visible in the foreground."
+  },
+  {
+    "caption": "The keyboard is on top of the cat.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The cat is lying on top of the keyboard, which means the keyboard is directly under the cat."
+  }
+]
+
+Weakly supported
+[
+  {
+    "type": "weakly_supported",
+    "index": 108,
+    "caption": "The dining table is under the suitcase.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The picture shows a cake that looks like a suitcase with a tag on it. The cake is sitting on a table.",
+    "weak_logic_reason": "The reasoning relies on an object-identity approximation ('a cake that looks like a suitcase') and only indirectly infers the spatial relation. It never explicitly confirms that the supporting table is the dining table referred to in the caption, yet it confidently outputs a strict True."
+  },
+  {
+    "type": "weakly_supported",
+    "index": 122,
+    "caption": "The pizza is in the dog.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The picture shows a puppy holding a toy that looks like a slice of pizza. The toy is in the dog's mouth.",
+    "weak_logic_reason": "The reasoning reaches the answer through a proxy object ('a toy that looks like a slice of pizza') rather than directly verifying the stated object. Because it depends on interpreting a toy as pizza, the support is plausible but not fully decisive, yet the model outputs a blunt True."
+  },
+  {
+    "type": "weakly_supported",
+    "index": 262,
+    "caption": "The cat is touching the banana.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The picture shows a cat lying next to a toy that looks like a banana. The cat's paw is on top of the toy.",
+    "weak_logic_reason": "The reasoning uses a tentative object match ('a toy that looks like a banana') rather than confirming the banana itself. The spatial evidence for touching is relevant, but the object identity is only inferred, so the support is weaker than the final committed True suggests."
+  },
+  {
+    "type": "weakly_supported",
+    "index": 380,
+    "caption": "The cake consists of the car.",
+    "ground_truth": "True",
+    "model_box": "True",
+    "reasoning": "The picture shows a cake that looks like a car.",
+    "weak_logic_reason": "The reasoning is extremely short and only states appearance ('looks like a car') without explicitly explaining the composition relation in the caption. The answer may be correct, but the justification is underspecified and weaker than a fully supported committed True."
+  },
+  {
+    "type": "weakly_supported",
+    "index": 582,
+    "caption": "The bed is beneath the suitcase.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The picture shows a bed with a suitcase on top of a dresser. The suitcase is not directly under the bed.",
+    "weak_logic_reason": "The reasoning uses the narrower phrase 'not directly under' rather than fully ruling out the broader relation 'beneath.' This makes the conclusion directionally relevant but not completely decisive, yet the model still outputs a strict False."
+  },
+  {
+    "type": "weakly_supported",
+    "index": 597,
+    "caption": "The suitcase is under the dining table.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The picture shows a cake that looks like a suitcase. The suitcase is on top of a table. The table is on top of a dining table.",
+    "weak_logic_reason": "The reasoning depends on a proxy-object interpretation ('a cake that looks like a suitcase') and then chains multiple relations indirectly. While it suggests the suitcase is not under the dining table, the support is mediated and somewhat artificial, so the confident False is only weakly supported."
+  },
+]
+
+Unsupported:
+[
+  {
+    "type": "unsupported",
+    "index": 37,
+    "caption": "The sandwich is beside the microwave.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The sandwich is in front of the microwave.",
+    "unsupported_reason": "The reasoning only states an in-front-of relation and does not establish whether the sandwich is beside the microwave or not. Since 'in front of' does not rule out 'beside,' the final False is not adequately supported by the reasoning."
+  },
+  {
+    "type": "unsupported",
+    "index": 67,
+    "caption": "The person is touching the sandwich.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The picture contains a sandwich cut in half and a hand in the background.",
+    "unsupported_reason": "The reasoning mentions the presence of a hand but provides no direct evidence about whether the hand is touching the sandwich. The final False is stronger than what the reasoning actually justifies."
+  },
+  {
+    "type": "unsupported",
+    "index": 23,
+    "caption": "The car is far from the chair.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The picture shows a dog in a car looking out the window. The dog is not near the chair.",
+    "unsupported_reason": "The reasoning shifts to the dog-chair relation instead of evaluating the car-chair relation asked in the caption. Because it reasons about the wrong object pair, the final False is unsupported."
+  },
+  {
+    "type": "unsupported",
+    "index": 320,
+    "caption": "The person is at the left side of the remote.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "The hand is holding the remote control. The hand is on the left side of the remote.",
+    "unsupported_reason": "The reasoning refers to the hand rather than the full person, which is a weaker and potentially invalid substitute for the caption subject. The final False may be correct, but the reasoning does not cleanly justify it at the level of the stated entities."
+  },
+  {
+    "type": "unsupported",
+    "index": 678,
+    "caption": "The pizza is behind the sandwich.",
+    "ground_truth": "False",
+    "model_box": "False",
+    "reasoning": "There is a piece of pie behind a sandwich.",
+    "unsupported_reason": "The reasoning swaps the queried object 'pizza' for 'piece of pie,' which is not necessarily the same object. Because the conclusion depends on an unverified object substitution, the final False is not properly supported by the reasoning."
+  }
+]
