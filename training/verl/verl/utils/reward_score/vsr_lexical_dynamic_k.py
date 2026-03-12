@@ -85,7 +85,7 @@ class _StepTracker:
 _step_tracker = _StepTracker()
 
 
-def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
+def compute_score(solution_str, ground_truth, method="strict", format_score=-1.0,
                   score=1.0, **kwargs):
     """
     Lexical reward function for VSR dataset — with **parameterized dynamic negative reward**.

@@ -105,9 +105,9 @@ Output: {"label": "contradictory", "explanation": "The reasoning thoroughly eval
 # ---------------------------------------------------------------------------
 LABEL_TO_REWARD = {
     "strongly supported": 1.0,
-    "weakly supported": 0.66,
-    "unsupported": 0.33,
-    "contradictory": 0.0,
+    "weakly supported": 0.5,
+    "unsupported": -0.5,
+    "contradictory": -1.0,
 }
 
 
@@ -356,17 +356,19 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=-1.0
         3. Call an external LLM judge to compare reasoning vs. final answer.
            The judge returns one of four labels:
                "strongly supported" → judge_reward = 1.0
-               "weakly supported"   → judge_reward = 0.66
-               "unsupported"        → judge_reward = 0.33
-               "contradictory"      → judge_reward = 0.0
+               "weakly supported"   → judge_reward = 0.5
+               "unsupported"        → judge_reward = -0.5
+               "contradictory"      → judge_reward = -1.0
 
         4. Apply consistency adjustment to the base reward:
            - For True/False answers (correct OR incorrect):
-                 adjustment = -lambda_factor * (1 - judge_reward)
-                 This *penalises* answers whose reasoning doesn't support
-                 them.  If reasoning is "strongly supported" (judge_reward=1)
-                 the penalty is 0.  If "contradictory" (judge_reward=0) the
-                 full -lambda_factor is applied.
+                 adjustment = +lambda_factor * judge_reward
+                 This *rewards* answers whose reasoning supports them
+                 and *penalises* answers with contradictory reasoning.
+                 If reasoning is "strongly supported" (judge_reward=1.0)
+                 the full +lambda_factor bonus is applied.  If
+                 "contradictory" (judge_reward=-1.0) the full
+                 -lambda_factor penalty is applied.
 
            - For abstention answers ("I don't know"):
                  adjustment = +mu_factor * judge_reward
@@ -377,11 +379,11 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=-1.0
         5. Final reward = base_reward + adjustment
 
     Configurable kwargs:
-        total_steps_per_epoch (int)   – for dynamic negative reward scheduling
-        batch_size (int)              – for fallback step counter
-        lambda_factor (float)         – weight of consistency penalty for
+        total_steps_per_epoch (int)   - for dynamic negative reward scheduling
+        batch_size (int)              - for fallback step counter
+        lambda_factor (float)         - weight of consistency penalty for
                                         True/False answers  (default 0.5)
-        mu_factor (float)             – weight of consistency bonus for
+        mu_factor (float)             - weight of consistency bonus for
                                         abstention answers   (default 0.5)
     """
 
@@ -479,7 +481,7 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=-1.0
             caption_text = caption_text.split("\n")[-1].strip()
         # Remove any remaining image tags
         caption_text = re.sub(r'<image>\s*', '', caption_text).strip()
-        if not caption_text:
+        if not caption_text:0
             caption_text = None
 
     if reasoning_text is not None:
@@ -495,8 +497,8 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=-1.0
                 consistency_adjustment = mu_factor * judge_reward
             else:
                 # For True/False answers (correct or incorrect):
-                # adjustment = -lambda_factor * (1 - judge_reward)
-                consistency_adjustment = -lambda_factor * (1.0 - judge_reward)
+                # adjustment = +lambda_factor * judge_reward
+                consistency_adjustment = lambda_factor * judge_reward
 
     # -- 6. Compute final reward --
     final_reward = base_reward + consistency_adjustment
