@@ -242,12 +242,12 @@ def score_prediction(prediction, ground_truth_str, question, judge):
     Returns:
         (score, result_type, verdict, explanation)
     """
-    # 1. Check format — extract answer from /box[...]/
-    box_match = re.search(r'/box\[(.*?)\]/', prediction)
+    # 1. Check format — extract answer from /box[...]
+    box_match = re.search(r'/box\[(.*?)\]', prediction)
     if box_match:
         predicted_answer = box_match.group(1)
     else:
-        return -1.0, "no_format", None, "Missing /box[]/ format"
+        return -1.0, "no_format", None, "Missing /box[] format"
 
     # 2. Check for abstention ("I don't know")
     pred_normalized = normalize_answer(predicted_answer)
