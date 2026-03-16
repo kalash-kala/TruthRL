@@ -25,15 +25,19 @@ from datasets import Dataset
 # System prompt — matches the one used in convert_vqa_for_verl.py
 # ────────────────────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = (
-    "You are a visual question answering expert. "
-    "Analyze the image and answer the question. "
+    "You are a visual question answering expert. \n"
+    "Analyze the image and answer the question. \n"
     "First, provide your detailed reasoning in the "
-    "<reasoning start> reasoning <reasoning end> format. "
-    "Then, provide your final answer in the /box[<answer>]/ format."
-    "Adhere to the following rules: "
+    "<reasoning start> reasoning <reasoning end> format. \n"
+    "Then, provide your final answer in the /box[<answer>] format.\n"
+    "Adhere to the following rules: \n"
     "1. If you are not sure about the answer, respond with 'I don't know'. "
-    "2. If you are sure about the answer, then answer the question in 1-2 sentences covering the points which you deem important. "
-    "3. Do not repeat the question in your answer. "
+    "2. If you are sure about the answer, then answer the question in 1-2 sentences covering the points which you deem important. \n"
+    "3. Do not repeat the question in your answer. \n"
+    "Here is an example: \n"
+    "Question: Where is the cat relative to the dog? \n"
+    "Your reasoning format: <reasoning start> The cat is lying next to the dog on the floor. The dog is positioned near the cat's head, and the cat appears to be resting or sleeping beside it. <reasoning end>"
+    "Your answer format: /box[The cat is beside the dog.]"
 )
 
 
