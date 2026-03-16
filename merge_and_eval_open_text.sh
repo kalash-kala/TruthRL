@@ -30,29 +30,31 @@ RUN_NAME=""
 OUTPUT_DIR="results/open_text_eval"
 DISABLE_TIMESTAMP=false
 DATA_PATH=""
-BASE_MODEL="/root/Desktop/kalashkala/Models/Qwen2.5-VL-3B-Instruct"
-JUDGE_MODEL="/root/Desktop/kalashkala/Models/Meta-Llama-3.1-8B-Instruct"
+BASE_MODEL="/home/kalashkala/Models/Qwen2.5-VL-3B-Instruct"
+JUDGE_MODEL="/home/kalashkala/Models/Meta-Llama-3.1-8B-Instruct"
 JUDGE_PORT=8000
 JUDGE_GPU_UTIL=0.85
+SKIP_MERGE=false
 
 # ============================================================================
 # Usage
 # ============================================================================
 usage() {
-    echo "Usage: $0 -c <checkpoint_dir> -d <data_path> [-n <run_name>] [-o <output_dir>] [-j <judge_model>] [-t]"
+    echo "Usage: $0 -c <checkpoint_dir> -d <data_path> [-n <run_name>] [-o <output_dir>] [-j <judge_model>] [-t] [-s]"
     echo "  -c: Path to the checkpoint directory (REQUIRED)"
     echo "  -d: Path to the VERL-format evaluation parquet file (REQUIRED)"
     echo "  -n: Name for this evaluation run (default: eval_open_text_\$(basename CHECKPOINT_DIR)_TIMESTAMP)"
     echo "  -o: Directory to save results (default: results/open_text_eval)"
     echo "  -j: Path to the LLM judge model (default: $JUDGE_MODEL)"
     echo "  -t: Disable timestamp in output sub-directory name"
+    echo "  -s: Skip the model merge step (evaluating a base pre-trained model directly)"
     exit 1
 }
 
 # ============================================================================
 # Parse Arguments
 # ============================================================================
-while getopts "c:n:o:d:j:t" opt; do
+while getopts "c:n:o:d:j:ts" opt; do
     case ${opt} in
         c ) CHECKPOINT_DIR=$OPTARG ;;
         n ) RUN_NAME=$OPTARG ;;
@@ -60,6 +62,7 @@ while getopts "c:n:o:d:j:t" opt; do
         d ) DATA_PATH=$OPTARG ;;
         j ) JUDGE_MODEL=$OPTARG ;;
         t ) DISABLE_TIMESTAMP=true ;;
+        s ) SKIP_MERGE=true ;;
         \? ) usage ;;
     esac
 done
@@ -100,26 +103,34 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 # ============================================================================
-# Step 1: Merge Sharded Model
+# Step 1: Merge Sharded Model (or Skip)
 # ============================================================================
-echo "=================================================="
-echo "Step 1: Merging sharded model..."
-echo "Source: $ACTOR_DIR"
-echo "Target: $TARGET_DIR"
-echo "=================================================="
+if [ "$SKIP_MERGE" = true ]; then
+    echo "=================================================="
+    echo "Step 1: Skipping model merge (evaluating base model directly)..."
+    echo "Model: $ACTOR_DIR"
+    echo "=================================================="
+    TARGET_DIR="$ACTOR_DIR"
+else
+    echo "=================================================="
+    echo "Step 1: Merging sharded model..."
+    echo "Source: $ACTOR_DIR"
+    echo "Target: $TARGET_DIR"
+    echo "=================================================="
 
-python3 -m verl.model_merger merge \
-    --backend fsdp \
-    --local_dir "$ACTOR_DIR" \
-    --target_dir "$TARGET_DIR"
+    python3 -m verl.model_merger merge \
+        --backend fsdp \
+        --local_dir "$ACTOR_DIR" \
+        --target_dir "$TARGET_DIR"
 
-if [ $? -ne 0 ]; then
-    echo "Error: Model merging failed."
-    exit 1
+    if [ $? -ne 0 ]; then
+        echo "Error: Model merging failed."
+        exit 1
+    fi
+
+    echo ""
+    echo "Model merged successfully."
 fi
-
-echo ""
-echo "Model merged successfully."
 
 # ============================================================================
 # Step 2: Start LLM Judge Server
@@ -147,7 +158,7 @@ echo "vLLM judge server started with PID $VLLM_PID"
 echo "Waiting for judge server to load model weights..."
 
 # Wait for the judge server to be ready (poll the health endpoint)
-MAX_WAIT=120
+MAX_WAIT=1200
 WAITED=0
 INTERVAL=5
 while [ $WAITED -lt $MAX_WAIT ]; do
