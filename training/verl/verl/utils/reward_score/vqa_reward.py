@@ -299,8 +299,8 @@ def compute_score(solution_str, ground_truth, method="strict",
         acceptable_answers = [str(ground_truth)]
         mc_answer = str(ground_truth)
 
-    # -- 2. Check format & extract answer from /box[...]/ --
-    box_match = re.search(r'/box\[(.*?)\]/', solution_str)
+    # -- 2. Check format & extract answer from /box[...] or /box[...]/ --
+    box_match = re.search(r'/box\[(.*?)\]/?', solution_str)
     if box_match:
         predicted_answer = box_match.group(1)
     else:
@@ -316,8 +316,8 @@ def compute_score(solution_str, ground_truth, method="strict",
         return {
             "score": penalty,
             "accuracy": 0.0,
-            "judge_verdict": None,
-            "judge_explanation": "Format /box[]/ not found",
+            "abstention": 0.0,
+            "format_error": penalty,
         }
 
     # -- 3. Check for abstention ("I don't know" — safe refusal) --
@@ -335,8 +335,8 @@ def compute_score(solution_str, ground_truth, method="strict",
         return {
             "score": 0.0,
             "accuracy": 0.0,
-            "judge_verdict": "ABSTENTION",
-            "judge_explanation": "Model chose to abstain rather than hallucinate.",
+            "abstention": 1.0,
+            "format_error": 0.0,
         }
 
     # -- 4. Quick VQA soft accuracy (used as fallback & for logging) --
@@ -347,10 +347,17 @@ def compute_score(solution_str, ground_truth, method="strict",
     prompt_text = ""
     if isinstance(extra_info, dict):
         prompt_text = extra_info.get("prompt_text", "")
+    
+    # Try to extract content between "user" and "assistant" roles from decoded prompt
+    match = re.search(r'(?:\n|^)user\n(.*?)(?:\nassistant\n?$|$)', prompt_text, re.DOTALL)
+    if match:
+        question_for_judge = match.group(1).strip()
+    else:
+        question_for_judge = prompt_text.strip()
+        if question_for_judge and "\n" in question_for_judge:
+            question_for_judge = question_for_judge.split("\n")[-1].strip()
+
     # Strip <image> tag prefix to get the raw question
-    question_for_judge = prompt_text
-    if question_for_judge and "\n" in question_for_judge:
-        question_for_judge = question_for_judge.split("\n")[-1].strip()
     question_for_judge = re.sub(r'<image>\s*', '', question_for_judge).strip()
     if not question_for_judge:
         # Fallback: try to reconstruct from acceptable answers context
@@ -390,8 +397,8 @@ def compute_score(solution_str, ground_truth, method="strict",
     })
 
     return {
-        "score": final_score,
-        "accuracy": accuracy,
-        "judge_verdict": verdict,
-        "judge_explanation": explanation,
+            "score": final_score,
+            "accuracy": float(accuracy),
+            "abstention": 0.0,
+            "format_error": 0.0,
     }

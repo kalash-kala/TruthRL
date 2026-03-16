@@ -115,8 +115,8 @@ LABEL_TO_REWARD = {
 # OpenAI client (same pattern as truthrl_qa.py)
 # ---------------------------------------------------------------------------
 client = OpenAI(
-    base_url=os.environ.get("OPENAI_API_BASE"),
-    api_key=os.environ.get("OPENAI_API_KEY"),
+    base_url=os.environ.get("OPENAI_API_BASE", "http://localhost:8000/v1"),
+    api_key=os.environ.get("OPENAI_API_KEY", "empty"), # vLLM does not require an API key
 )
 
 
@@ -162,7 +162,7 @@ def attempt_api_call(messages, max_retries=3):
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
-                model=os.environ.get("CONSISTENCY_JUDGE_MODEL", "google/gemma-3-27b-it"),
+                model=os.environ.get("CONSISTENCY_JUDGE_MODEL", "/home/kalashkala/Models/Meta-Llama-3.1-8B-Instruct"),
                 messages=messages,
                 temperature=0,
                 top_p=0.9,
@@ -473,15 +473,17 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=-1.0
     extra_info = kwargs.get("extra_info", {})
     prompt_text = extra_info.get("prompt_text", "") if isinstance(extra_info, dict) else ""
     if prompt_text:
-        # The prompt user message looks like: "<image>\nThe car is under the surfboard."
-        # Strip the <image> tag prefix to get the raw caption.
-        caption_text = prompt_text
-        if "\n" in caption_text:
-            # Take the last line of the user content as the caption
-            caption_text = caption_text.split("\n")[-1].strip()
+        match = re.search(r'(?:\n|^)user\n(.*?)(?:\nassistant\n?$|$)', prompt_text, re.DOTALL)
+        if match:
+            caption_text = match.group(1).strip()
+        else:
+            caption_text = prompt_text.strip()
+            if "\n" in caption_text:
+                caption_text = caption_text.split("\n")[-1].strip()
+
         # Remove any remaining image tags
         caption_text = re.sub(r'<image>\s*', '', caption_text).strip()
-        if not caption_text:0
+        if not caption_text:
             caption_text = None
 
     if reasoning_text is not None:
