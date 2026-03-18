@@ -19,7 +19,20 @@
 #        -d /home/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/test_open_text.parquet \
 #        -n eval_vsr_open_text_v1
 #
-#   3. With nohup in background:
+#   3. GQA spatial evaluation (Vanilla zero-shot, skipping merge):
+#      ./merge_and_eval_open_text.sh \
+#        -c /home/kalashkala/Models/Qwen2.5-VL-3B-Instruct \
+#        -d /home/kalashkala/Datasets/GQA/val_spatial_for_verl.parquet \
+#        -n eval_gqa_zeroshot \
+#        -s
+#
+#   4. GQA spatial evaluation (Trained model, requires merge):
+#      ./merge_and_eval_open_text.sh \
+#        -c /data/kalashkala/checkpoints/TruthRL_GQA/.../global_step_XXX/actor \
+#        -d /home/kalashkala/Datasets/GQA/val_spatial_for_verl.parquet \
+#        -n eval_gqa_trained
+#
+#   5. With nohup in background:
 #      nohup ./merge_and_eval_open_text.sh -c /path/to/actor -d /path/to/data.parquet -n eval_run > eval_run.log 2>&1 &
 
 # ============================================================================
