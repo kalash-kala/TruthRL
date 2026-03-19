@@ -13,7 +13,13 @@ Usage:
   python3 /home/kalashkala/TruthRL/scripts/convert_vqa_for_verl.py \
     --input_parquet /home/kalashkala/Datasets/VQAv2/vqa_train.parquet \
     --output_dir /home/kalashkala/Datasets/VQAv2/processed_for_verl \
-    --output_name train_vqa.parquet \
+    --output_name train_vqa_new_system_prompt.parquet \
+    --max_samples 0
+
+  python3 /home/kalashkala/TruthRL/scripts/convert_vqa_for_verl.py \
+    --input_parquet /home/kalashkala/Datasets/VQAv2/vqa_validation.parquet \
+    --output_dir /home/kalashkala/Datasets/VQAv2/processed_for_verl \
+    --output_name validation_vqa_new_system_prompt.parquet \
     --max_samples 0
 """
 
@@ -29,16 +35,53 @@ from tqdm import tqdm
 # ────────────────────────────────────────────────────────────────────────────
 # System prompt placeholder — UPDATE THIS with your actual prompt later
 # ────────────────────────────────────────────────────────────────────────────
+# SYSTEM_PROMPT = (
+#     "You are a visual question answering expert. "
+#     "Analyze the image and answer the question. "
+#     "First, provide your detailed reasoning in the "
+#     "<reasoning start> reasoning <reasoning end> format. "
+#     "Then, provide your final answer in the /box[<answer>]/ format."
+#     "Adhere to the following rules: "
+#     "1. If you are not sure about the answer, respond with 'I don't know'. "
+#     "2. If you are sure about the answer, then answer the question in 1-2 sentences covering the points which you deem important. "
+#     "3. Do not repeat the question in your answer. "
+# )
+
 SYSTEM_PROMPT = (
-    "You are a visual question answering expert. "
-    "Analyze the image and answer the question. "
-    "First, provide your detailed reasoning in the "
-    "<reasoning start> reasoning <reasoning end> format. "
-    "Then, provide your final answer in the /box[<answer>]/ format."
-    "Adhere to the following rules: "
-    "1. If you are not sure about the answer, respond with 'I don't know'. "
-    "2. If you are sure about the answer, then answer the question in 1-2 sentences covering the points which you deem important. "
-    "3. Do not repeat the question in your answer. "
+    "You are a visual question answering model for spatial relation tasks.\n"
+    "You must answer using EXACTLY this format and nothing else:\n\n"
+    "<reasoning>\n"
+    "Detailed visual reasoning here.\n"
+    "</reasoning>\n"
+    "/box[final answer]\n\n"
+    "Strict rules:\n"
+    "1. Output exactly one <reasoning> block followed by exactly one /box[...].\n"
+    "2. Do not write any text before <reasoning>.\n"
+    "3. Do not write any text after /box[...].\n"
+    "4. The reasoning may be detailed and multi-sentence.\n"
+    "5. The final answer must appear only inside /box[...].\n"
+    "6. The final answer may be a short phrase or a single natural sentence.\n"
+    "7. The final answer must directly answer the question using the visible spatial relation.\n"
+    "8. Do not put reasoning, justification, or extra explanation inside /box[...].\n"
+    "9. If uncertain, output exactly /box[I don't know].\n"
+    "10. Do not repeat the full question.\n"
+    "11. Base your reasoning only on visible evidence in the image.\n"
+    "12. Prefer clear spatial relation wording such as left of, right of, behind, in front of, above, below, inside, overlapping, intersecting, covering, or around.\n\n"
+    "Example 1:\n"
+    "<reasoning>\n"
+    "The cup is positioned on the right side of the plate. The plate is clearly to the left of the cup, and there is no stronger relation such as above or behind.\n"
+    "</reasoning>\n"
+    "/box[The cup is to the right of the plate.]\n\n"
+    "Example 2:\n"
+    "<reasoning>\n"
+    "The lamp appears vertically higher than the sofa and is not merely near it. The strongest visible relation is above.\n"
+    "</reasoning>\n"
+    "/box[The lamp is above the sofa.]\n\n"
+    "Example 3:\n"
+    "<reasoning>\n"
+    "The target object is partially occluded and the relative position is unclear. Multiple relations are possible, but the image does not support one answer confidently.\n"
+    "</reasoning>\n"
+    "/box[I don't know]"
 )
 
 
