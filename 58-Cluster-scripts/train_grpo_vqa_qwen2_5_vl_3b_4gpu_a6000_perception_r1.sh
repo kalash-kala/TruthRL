@@ -1,0 +1,156 @@
+#!/bin/bash
+# ============================================================================
+# VQA + Qwen2.5-VL-3B FULL PARAMETER (Perception-R1 Logic) — 58-Cluster (4× RTX A6000)
+# Uses TruthRL verl engine with Perception-R1 reward function
+# ============================================================================
+# Run with:
+#   nohup bash train_grpo_vqa_qwen2_5_vl_3b_4gpu_a6000_perception_r1.sh > train_vqa_r1_4gpu.log 2>&1 &
+# ============================================================================
+
+# Clean up old Ray sessions and temp files before starting
+ray stop
+rm -rf /tmp/ray/*
+
+# Change to the TruthRL verl directory
+# cd /home/debarpanb1/kalashkala/TruthRL/training/verl
+# export PYTHONPATH="/home/debarpanb1/kalashkala/TruthRL/training/verl:$PYTHONPATH"
+
+# Kill any existing vLLM server just in case
+pkill -f "vllm.entrypoints.openai.api_server" || true
+fuser -k 8000/tcp || true
+
+# Wait for old processes to fully release GPU memory
+sleep 10
+
+set -x
+export WANDB_MODE=disabled
+export HYDRA_FULL_ERROR=1
+export RAY_DEDUP_LOGS=0
+export RAY_DASHBOARD_ENABLED=0
+export RAY_USAGE_STATS_ENABLED=0
+
+# Network config (58-Cluster)
+export NCCL_IB_DISABLE=1
+export NCCL_SOCKET_IFNAME='^lo,docker,virbr,br-,veth'
+export PYTHONUNBUFFERED=1
+
+export MKL_SERVICE_FORCE_INTEL=1
+export MKL_THREADING_LAYER=GNU
+export RAY_memory_usage_threshold=0.95
+
+# 4× RTX A6000 GPUs (58-Cluster Node layout)
+export NUM_GPUS=4
+export CUDA_VISIBLE_DEVICES=2,3,4,7
+export TOKENIZERS_PARALLELISM=true
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+
+# ============================================================================
+# JUDGE MODEL CONFIG (Qwen2.5-32B-Instruct-AWQ)
+# ============================================================================
+export JUDGE_MODEL='/home/debarpanb1/kalashkala/models/Qwen2.5-32B-Instruct-AWQ'
+export JUDGE_PORT=$(( 8000 + RANDOM % 1000 ))
+export OPENAI_API_BASE="http://localhost:${JUDGE_PORT}/v1"
+export VQA_JUDGE_MODEL="${JUDGE_MODEL}"
+
+# ============================================================================
+# START LOCAL vLLM JUDGE SERVER (BACKGROUND)
+# ============================================================================
+echo "Starting local vLLM judge server on GPUs $CUDA_VISIBLE_DEVICES in the background on port $JUDGE_PORT..."
+CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES python3 -m vllm.entrypoints.openai.api_server \
+    --model "${JUDGE_MODEL}" \
+    --tensor-parallel-size 4 \
+    --gpu-memory-utilization 0.15 \
+    --max-model-len 2048 \
+    --max-num-seqs 4 \
+    --enforce-eager \
+    --dtype float16 \
+    --port "${JUDGE_PORT}" \
+    > "vllm_judge_server_perception_r1_${JUDGE_PORT}.log" 2>&1 &
+
+VLLM_PID=$!
+echo "vLLM server started with PID $VLLM_PID. Waiting for judge server to be ready..."
+
+WAITED=0
+INTERVAL=10
+while true; do
+    if curl -s http://localhost:${JUDGE_PORT}/v1/models > /dev/null 2>&1; then
+        echo "Judge server is ready! (waited ${WAITED}s)"
+        break
+    fi
+    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
+        echo "Error: vLLM judge server process died. Check vllm_judge_server_perception_r1_${JUDGE_PORT}.log"
+        exit 1
+    fi
+    sleep $INTERVAL
+    WAITED=$((WAITED + INTERVAL))
+    echo "Still waiting for judge server... (${WAITED}s elapsed)"
+done
+
+# Ensure we cleanup vLLM process on script exit
+trap "echo 'Cleaning up vLLM server (PID $VLLM_PID)...'; kill $VLLM_PID; exit" INT TERM EXIT
+
+# ============================================================================
+# PATHS (58-Cluster)
+# ============================================================================
+DATA_DIR=/home/debarpanb1/kalashkala/visual-question-answering/processed_for_verl
+MODEL_PATH=/home/debarpanb1/kalashkala/models/Qwen2.5-VL-3B-Instruct
+REWARD_FN_PATH=/home/debarpanb1/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1.py
+
+# ============================================================================
+# Hyperparameters
+# ============================================================================
+LR=1e-6
+BSZ=32
+GROUP_SIZE=4
+EPOCHS=3
+
+SYSTEM_PROMPT="You FIRST think about the reasoning process as an internal monologue and then provide the final answer. The reasoning process MUST BE enclosed within <think> </think> tags, and the answer process MUST BE enclosed within <answer> </answer> tags. The final answer MUST BE put in \boxed{} in <answer> </answer> tags."
+
+# ============================================================================
+# Launch Training using TruthRL main_ppo
+# ============================================================================
+python3 -m verl.trainer.main_ppo \
+    algorithm.adv_estimator=grpo \
+    data.train_files=$DATA_DIR/train_perturbed_vqa.parquet \
+    data.val_files=$DATA_DIR/val_perturbed_vqa.parquet \
+    data.reward_fn_key=ability \
+    data.image_key=images \
+    data.train_batch_size=$BSZ \
+    data.max_prompt_length=1024 \
+    data.max_response_length=768 \
+    data.filter_overlong_prompts=True \
+    data.truncation='error' \
+    actor_rollout_ref.model.path=$MODEL_PATH \
+    actor_rollout_ref.model.trust_remote_code=True \
+    actor_rollout_ref.actor.optim.lr=$LR \
+    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.actor.ppo_mini_batch_size=$BSZ \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
+    actor_rollout_ref.model.enable_gradient_checkpointing=True \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.01 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    actor_rollout_ref.actor.fsdp_config.param_offload=False \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
+    actor_rollout_ref.rollout.name=vllm \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
+    actor_rollout_ref.rollout.n=$GROUP_SIZE \
+    actor_rollout_ref.rollout.enforce_eager=True \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=False \
+    trainer.val_before_train=False \
+    algorithm.use_kl_in_reward=False \
+    custom_reward_function.path=$REWARD_FN_PATH \
+    custom_reward_function.name=compute_score \
+    trainer.project_name="Perception-R1" \
+    trainer.experiment_name="vqa_qwen2_5_vl_3b_4gpu_a6000_r1_style" \
+    trainer.logger="['console']" \
+    trainer.n_gpus_per_node=$NUM_GPUS \
+    trainer.nnodes=1 \
+    trainer.save_freq=375 \
+    trainer.test_freq=50 \
+    trainer.total_epochs=$EPOCHS "$@"
+
+echo "Training complete."
