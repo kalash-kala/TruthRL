@@ -6,7 +6,7 @@
 # Uses LLM-as-Judge reward function (vqa_reward.py) with local vLLM judge
 #
 # Run with:
-#   nohup bash train_grpo_vqa_qwen2_5_vl_3b_2gpu_a100.sh > train_vqa_2gpu_a100_epoch3_ft_bsz8_lr1e6_gs4.log 2>&1 &
+#   nohup bash train_grpo_vqa_qwen2_5_vl_3b_2gpu_a100_bsz16_gs8.sh > train_vqa_2gpu_a100_epoch3_ft_bsz16_lr1e6_gs8_new_system_prompt.log 2>&1 &
 # ============================================================================
 # Clean up old Ray sessions and temp files before starting
 ray stop
@@ -87,8 +87,8 @@ REWARD_FN_PATH=/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vq
 LR=1e-6
 
 # Batch & Rollout Config
-BSZ=8
-GROUP_SIZE=4
+BSZ=16
+GROUP_SIZE=8
 ROLLOUT_TP_SIZE=1
 EPOCHS=3
 
@@ -144,10 +144,10 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','tensorboard'] \
     trainer.project_name="TruthRL_VQA" \
-    trainer.experiment_name="vqa_qwen2_5_vl_3b_2gpu_a100_full_bsz8_lr1e6_gs4_epoch3_new_system_prompt" \
+    trainer.experiment_name="vqa_qwen2_5_vl_3b_2gpu_a100_full_bsz16_lr1e6_gs8_epoch3_new_system_prompt" \
     trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
-    trainer.save_freq=250 \
+    trainer.save_freq=375 \
     trainer.test_freq=50 \
     trainer.default_local_dir='/data/kalashkala/checkpoints/${trainer.project_name}/${trainer.experiment_name}' \
     trainer.max_actor_ckpt_to_keep=$EPOCHS \
