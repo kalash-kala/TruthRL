@@ -1,29 +1,14 @@
 #!/bin/bash
 # ============================================================================
-# VQA + Qwen2.5-VL-3B FULL PARAMETER (Perception-R1 Logic) — 2× H200 (KIAC)
-# Uses TruthRL verl engine (main_ppo) with Perception-R1 reward function
-# Tailored for KIAC H200 infrastructure based on TruthRL environment.
+# VQA + Qwen2.5-VL-3B FULL PARAMETER (Perception-R1 Logic) — 2× A100 (TruthRL)
+# Mimics H200 script but optimized for 2x A100 (80GB) memory constraints.
 # ============================================================================
-#SBATCH --partition=h200
-#SBATCH --account=sriramg
-#SBATCH --qos=h200_qos
-#SBATCH --gres=gpu:h200:2
-#SBATCH --job-name=vqa_qwen2_5_vl_3b_full_perception_r1_h200
-#SBATCH --output=/home/sriramg/kalashabhayk/TruthRL/slurm_logs/logs/%x_%j.out
-#SBATCH --error=/home/sriramg/kalashabhayk/TruthRL/slurm_logs/errors/%x_%j.err
-#SBATCH --chdir=/home/sriramg/kalashabhayk/TruthRL
-#SBATCH --time=24:00:00
-#SBATCH --mem=200G
-#SBATCH --cpus-per-task=16
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
+
+# nohup bash train_grpo_vqa_qwen2_5_vl_3b_2gpu_a100_perception_r1.sh > train_vqa_2gpu_a100_epoch3_ft_bsz16_lr1e6_gs4_perception_r1.log 2>&1 &
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "/home/sriramg/kalashabhayk/TruthRL"
-
-# Ensure log directories exist
-mkdir -p slurm_logs/logs slurm_logs/errors
+cd "/home/kalashkala/TruthRL"
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate truthrl-verl
@@ -54,7 +39,7 @@ export MKL_SERVICE_FORCE_INTEL=1
 export MKL_THREADING_LAYER=GNU
 export RAY_memory_usage_threshold=0.95
 
-# 2× H200 GPUs (KIAC layout)
+# 2× A100 GPUs
 export NUM_GPUS=2
 export CUDA_VISIBLE_DEVICES=0,1
 export TOKENIZERS_PARALLELISM=true
@@ -63,8 +48,8 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 # ============================================================================
 # JUDGE MODEL CONFIG (Qwen2.5-32B-Instruct-AWQ)
 # ============================================================================
-export JUDGE_MODEL='/home/sriramg/kalashabhayk/models/Qwen2.5-32B-Instruct-AWQ'
-export JUDGE_PORT=$(( 8000 + RANDOM % 1000 ))
+export JUDGE_MODEL='/home/kalashkala/Models/Qwen2.5-32B-Instruct-AWQ'
+export JUDGE_PORT=8000
 export OPENAI_API_BASE="http://localhost:${JUDGE_PORT}/v1"
 export VQA_JUDGE_MODEL="${JUDGE_MODEL}"
 
@@ -72,16 +57,17 @@ export VQA_JUDGE_MODEL="${JUDGE_MODEL}"
 # START LOCAL vLLM JUDGE SERVER (BACKGROUND)
 # ============================================================================
 echo "Starting local vLLM judge server on GPUs 0,1 in the background on port $JUDGE_PORT..."
+# Using tensor-parallel-size 2 and low gpu-memory-utilization to leave room for training
 CUDA_VISIBLE_DEVICES=0,1 python3 -m vllm.entrypoints.openai.api_server \
     --model "${JUDGE_MODEL}" \
     --tensor-parallel-size 2 \
-    --gpu-memory-utilization 0.3 \
+    --gpu-memory-utilization 0.20 \
     --max-model-len 2048 \
-    --max-num-seqs 128 \
+    --max-num-seqs 16 \
     --enforce-eager \
     --dtype float16 \
-    --port "${JUDGE_PORT}" \
-    > "vllm_judge_server_perception_r1_${JUDGE_PORT}.log" 2>&1 &
+    --port 8000 \
+    > "vllm_judge_server_perception_r1_a100_${JUDGE_PORT}.log" 2>&1 &
 
 VLLM_PID=$!
 echo "vLLM server started with PID $VLLM_PID. Waiting for judge server to be ready..."
@@ -94,7 +80,7 @@ while true; do
         break
     fi
     if ! kill -0 "$VLLM_PID" 2>/dev/null; then
-        echo "Error: vLLM judge server process died. Check vllm_judge_server_perception_r1_${JUDGE_PORT}.log"
+        echo "Error: vLLM judge server process died. Check vllm_judge_server_perception_r1_a100_${JUDGE_PORT}.log"
         exit 1
     fi
     sleep $INTERVAL
@@ -103,22 +89,21 @@ while true; do
 done
 
 # Ensure we cleanup vLLM process on script exit
-trap "echo 'Cleaning up vLLM server (PID $VLLM_PID)...'; kill $VLLM_PID; exit" INT TERM EXIT
+trap 'echo "Cleaning up vLLM server (PID $VLLM_PID)..."; kill $VLLM_PID; exit' INT TERM EXIT
 
 # ============================================================================
 # PATHS
 # ============================================================================
-DATA_DIR=/home/sriramg/kalashabhayk/visual-question-answering/processed_for_verl
-MODEL_PATH=/home/sriramg/kalashabhayk/models/Qwen2.5-VL-3B-Instruct
-REWARD_FN_PATH=/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1.py
+DATA_DIR=/home/kalashkala/Datasets/VQAv2/processed_for_verl
+MODEL_PATH=/home/kalashkala/Models/Qwen2.5-VL-3B-Instruct
+REWARD_FN_PATH=/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1.py
 
 # ============================================================================
 # Hyperparameters
 # ============================================================================
-# Adjusted for 2x H200 to match effective batch size 32
 LR=1e-6
-BSZ=32
-GROUP_SIZE=16
+BSZ=16
+GROUP_SIZE=4
 EPOCHS=3
 
 # ============================================================================
@@ -126,8 +111,8 @@ EPOCHS=3
 # ============================================================================
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=$DATA_DIR/train_perturbed_vqa.parquet \
-    data.val_files=$DATA_DIR/val_perturbed_vqa.parquet \
+    data.train_files=$DATA_DIR/train_perturbed_vqa_updated.parquet \
+    data.val_files=$DATA_DIR/val_perturbed_vqa_updated.parquet \
     data.reward_fn_key=ability \
     data.image_key=images \
     data.train_batch_size=$BSZ \
@@ -140,28 +125,28 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.optim.lr=$LR \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=$BSZ \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.n=$GROUP_SIZE \
     actor_rollout_ref.rollout.enforce_eager=True \
     actor_rollout_ref.rollout.free_cache_engine=True \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
     trainer.val_before_train=False \
     algorithm.use_kl_in_reward=False \
     custom_reward_function.path=$REWARD_FN_PATH \
     custom_reward_function.name=compute_score \
     trainer.project_name="Perception-R1" \
-    trainer.experiment_name="vqa_qwen2_5_vl_3b_2gpu_h200_perception_r1" \
+    trainer.experiment_name="vqa_qwen2_5_vl_3b_2gpu_a100_perception_r1" \
     trainer.logger="['console']" \
     trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
