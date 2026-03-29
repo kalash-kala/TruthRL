@@ -955,6 +955,4 @@ def compute_score(solution_str, ground_truth, method="strict",
         "base_answer_score": float(base_answer_score),
         "visual_reward": float(visual_reward),
         "repetition_penalty": float(rep_penalty_applied),
-        "reasoning_quality": reasoning_quality or "N/A",
-        "score_event": score_event,
     }
