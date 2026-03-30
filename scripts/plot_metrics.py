@@ -5,6 +5,8 @@ import os
 import matplotlib
 matplotlib.use('Agg') # Use non-interactive backend
 import matplotlib.pyplot as plt
+import json
+
 
 def main():
     parser = argparse.ArgumentParser(description='Plot training metrics from log file.')
@@ -13,7 +15,11 @@ def main():
     parser.add_argument('--output', type=str, 
                         default='training_metrics_plot.png',
                         help='Name of the output plot file')
+    parser.add_argument('--json_output', type=str,
+                        default=None,
+                        help='Name of the output JSON file (defaults to plot name with .json)')
     args = parser.parse_args()
+
 
     log_file = args.log_file
     output_filename = args.output
@@ -130,9 +136,43 @@ def main():
     plt.tight_layout()
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
+
+    # Save to JSON
+    json_output_filename = args.json_output
+    if not json_output_filename:
+        # Use the same base name as the output plot but with .json extension
+        base_name = os.path.splitext(output_filename)[0]
+        json_output_filename = f"{base_name}.json"
+    
+    json_output_path = os.path.join(plots_dir, json_output_filename)
+    
+    metrics_json = {
+        "training": [
+            {
+                "step": step,
+                "accuracy": acc,
+                "kl": kl,
+                "pg_loss": loss
+            }
+            for step, acc, kl, loss in zip(step_inds, step_accuracies, step_kls, step_pg_losses)
+        ],
+        "validation": [
+            {
+                "step": step,
+                "accuracy": acc
+            }
+            for step, acc in zip(val_steps, val_accuracies)
+        ]
+    }
+    
+    with open(json_output_path, 'w') as jf:
+        json.dump(metrics_json, jf, indent=4)
+    
+    print(f"Metrics JSON saved to {json_output_path}")
     print(f"Parsed {len(step_inds)} step logs and {len(val_steps)} validation checkpoints.")
     if val_steps:
         print(f"Latest Validation Accuracy: {val_accuracies[-1]:.4f} at step {val_steps[-1]}")
+
 
 if __name__ == "__main__":
     main()
