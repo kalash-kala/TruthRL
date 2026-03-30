@@ -532,6 +532,9 @@ def main():
     # Truthfulness Score: (correct - incorrect) / total
     truthfulness_score = (n_correct - n_incorrect) / n_total if n_total > 0 else 0
 
+    # Coverage: n_correct / (n_correct + n_incorrect)
+    coverage = n_correct / (n_correct + n_incorrect) if (n_correct + n_incorrect) > 0 else 0
+
     summary = {
         "model_path": args.model_path,
         "judge_model": args.judge_model,
@@ -548,6 +551,7 @@ def main():
         "no_format_rate": no_format_rate,
         "judge_fail_rate": judge_fail_rate,
         "truthfulness_score": truthfulness_score,
+        "coverage": coverage,
         "timestamp": timestamp,
     }
 
@@ -563,6 +567,7 @@ def main():
     print(f"  Hallucination Rate:    {hallucination_rate:.2%} ({n_incorrect}/{n_total})")
     print(f"  No Format Rate:        {no_format_rate:.2%} ({n_no_format}/{n_total})")
     print(f"  Judge Failure Rate:    {judge_fail_rate:.2%} ({n_judge_failed}/{n_total})")
+    print(f"  Coverage Accuracy:     {coverage:.2%} (correct / answered)")
     print(f"  Results saved to:      {run_dir}")
     print("=" * 60)
 
