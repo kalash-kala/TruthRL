@@ -61,9 +61,9 @@ echo "Starting local vLLM judge server on GPUs 0,1 in the background on port $JU
 CUDA_VISIBLE_DEVICES=0,1 python3 -m vllm.entrypoints.openai.api_server \
     --model "${JUDGE_MODEL}" \
     --tensor-parallel-size 2 \
-    --gpu-memory-utilization 0.20 \
+    --gpu-memory-utilization 0.30 \
     --max-model-len 2048 \
-    --max-num-seqs 16 \
+    --max-num-seqs 128 \
     --enforce-eager \
     --dtype float16 \
     --port 8000 \
@@ -96,7 +96,9 @@ trap 'echo "Cleaning up vLLM server (PID $VLLM_PID)..."; kill $VLLM_PID; exit' I
 # ============================================================================
 DATA_DIR=/home/kalashkala/Datasets/VQAv2/processed_for_verl
 MODEL_PATH=/home/kalashkala/Models/Qwen2.5-VL-3B-Instruct
-REWARD_FN_PATH=/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1.py
+# REWARD_FN_PATH=/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1.py
+REWARD_FN_PATH=/home/kalashkala/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1_fast.py
+
 
 # ============================================================================
 # Hyperparameters
@@ -150,7 +152,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.logger="['console']" \
     trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
-    trainer.save_freq=375 \
+    trainer.save_freq=210 \
     trainer.test_freq=50 \
     trainer.total_epochs=$EPOCHS "$@"
 
