@@ -75,9 +75,9 @@ echo "Starting local vLLM judge server on GPUs 0,1 in the background on port $JU
 CUDA_VISIBLE_DEVICES=0,1 python3 -m vllm.entrypoints.openai.api_server \
     --model "${JUDGE_MODEL}" \
     --tensor-parallel-size 2 \
-    --gpu-memory-utilization 0.15 \
-    --max-model-len 8192 \
-    --max-num-seqs 256 \
+    --gpu-memory-utilization 0.3 \
+    --max-model-len 2048 \
+    --max-num-seqs 128 \
     --enforce-eager \
     --dtype float16 \
     --port "${JUDGE_PORT}" \
@@ -110,15 +110,15 @@ trap "echo 'Cleaning up vLLM server (PID $VLLM_PID)...'; kill $VLLM_PID; exit" I
 # ============================================================================
 DATA_DIR=/home/sriramg/kalashabhayk/visual-question-answering/processed_for_verl
 MODEL_PATH=/home/sriramg/kalashabhayk/models/Qwen2.5-VL-3B-Instruct
-REWARD_FN_PATH=/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1.py
+REWARD_FN_PATH=/home/sriramg/kalashabhayk/TruthRL/training/verl/verl/utils/reward_score/vqa_perception_r1_fast.py
 
 # ============================================================================
 # Hyperparameters
 # ============================================================================
 # Adjusted for 2x H200 to match effective batch size 32
 LR=1e-6
-BSZ=64
-GROUP_SIZE=32
+BSZ=128
+GROUP_SIZE=16
 EPOCHS=3
 
 # ============================================================================
@@ -131,8 +131,8 @@ python3 -m verl.trainer.main_ppo \
     data.reward_fn_key=ability \
     data.image_key=images \
     data.train_batch_size=$BSZ \
-    data.max_prompt_length=2048 \
-    data.max_response_length=2048 \
+    data.max_prompt_length=1024 \
+    data.max_response_length=768 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     actor_rollout_ref.model.path=$MODEL_PATH \
@@ -150,7 +150,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=32 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.75 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.n=$GROUP_SIZE \
     actor_rollout_ref.rollout.enforce_eager=True \
     actor_rollout_ref.rollout.free_cache_engine=True \
@@ -167,7 +167,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
     trainer.save_freq=25 \
-    trainer.test_freq=35 \
+    trainer.test_freq=50 \
     trainer.total_epochs=$EPOCHS "$@"
 
 echo "Training complete."
