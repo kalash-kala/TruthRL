@@ -201,27 +201,20 @@ client = OpenAI(
 # 4) Helpers
 # ---------------------------------------------------------------------------
 
-def robust_json_parse(text):
-    """Parse JSON rigorously, with a fallback to fix unescaped quotes in explanation field."""
+def robust_json_loads(text):
+    """Attempt json.loads, fallback to ast.literal_eval for single-quoted strings."""
     try:
         return json.loads(text)
-    except Exception as e:
-        # Fallback: attempt to fix common unescaped quotes in the "explanation" field
-        match = re.search(r'("explanation"\s*:\s*")(.*)("\s*\})', text, flags=re.DOTALL)
-        if match:
-            prefix = match.group(1)
-            content = match.group(2)
-            suffix = match.group(3)
-            # Replace any double quotes inside the content with single quotes
-            fixed_content = content.replace('"', "'")
-            # Remove any unescaped newlines which can also break JSON
-            fixed_content = fixed_content.replace('\n', ' ')
-            fixed_text = text[:match.start()] + prefix + fixed_content + suffix + text[match.end():]
-            try:
-                return json.loads(fixed_text)
-            except Exception:
-                pass
-        raise e
+    except json.JSONDecodeError as e:
+        try:
+            import ast
+            # Replace common JSON booleans/nulls so ast.literal_eval can parse it
+            cleaned = re.sub(r'\btrue\b', 'True', text)
+            cleaned = re.sub(r'\bfalse\b', 'False', cleaned)
+            cleaned = re.sub(r'\bnull\b', 'None', cleaned)
+            return ast.literal_eval(cleaned)
+        except Exception:
+            raise e
 
 def normalize_answer(s):
     """Lightweight text normalization for VQA answers."""
@@ -301,7 +294,7 @@ def parse_answer_judge_response(response):
         return None, None
 
     try:
-        obj = robust_json_parse(text)
+        obj = robust_json_loads(text)
         verdict = str(obj.get("verdict", "")).upper().strip()
         explanation = str(obj.get("explanation", "")).strip()
 
@@ -324,7 +317,7 @@ def parse_visual_judge_response(response, num_cues):
         return None, None, None
 
     try:
-        obj = robust_json_parse(text)
+        obj = robust_json_loads(text)
         cue_scores = obj.get("cue_scores", [])
         explanation = str(obj.get("explanation", "")).strip()
 
@@ -382,7 +375,7 @@ def parse_reasoning_judge_response(response):
         return None, None, None
 
     try:
-        obj = robust_json_parse(text)
+        obj = robust_json_loads(text)
         compatible = obj.get("compatible", None)
         quality = str(obj.get("quality", "")).upper().strip()
         explanation = str(obj.get("explanation", "")).strip()
