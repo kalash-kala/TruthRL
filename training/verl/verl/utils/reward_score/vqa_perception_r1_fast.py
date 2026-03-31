@@ -27,6 +27,7 @@ Rules:
 - Answers that are more specific but still correct (e.g., "golden retriever" when acceptable answers include "dog") should be considered CORRECT.
 - Answers that are too vague, wrong, or unrelated should be considered INCORRECT.
 - If the answer is a reasonable response to the question but not covered by the acceptable answers, still mark it INCORRECT — we only reward answers consistent with human consensus.
+- CRITICAL: You must ensure your JSON is valid. If you quote text inside the explanation, you MUST use single quotes (e.g., 'like this'). Do NOT use unescaped double quotes inside the JSON string.
 
 Output JSON with exactly two fields:
 {
@@ -77,6 +78,7 @@ Rules:
 - If a cue is missing, contradicted, or unsupported, mark 0.
 - Be conservative.
 - Output JSON only.
+- CRITICAL: Ensure your JSON is perfectly valid. If you quote text in the explanation, you MUST use single quotes. Do NOT use unescaped double quotes inside the JSON string.
 
 Required JSON schema:
 {
@@ -129,6 +131,7 @@ Rules:
 - A model that abstains but gives no real justification = WEAK.
 - A model that gives an answer but the reasoning doesn't mention relevant observations = WEAK.
 - A model whose reasoning contradicts its answer = NONE.
+- CRITICAL: Ensure your JSON is perfectly valid. If you quote text in the explanation, you MUST use single quotes. Do NOT use unescaped double quotes inside the JSON string.
 
 Output JSON with exactly three fields:
 {
@@ -197,6 +200,28 @@ client = OpenAI(
 # ---------------------------------------------------------------------------
 # 4) Helpers
 # ---------------------------------------------------------------------------
+
+def robust_json_parse(text):
+    """Parse JSON rigorously, with a fallback to fix unescaped quotes in explanation field."""
+    try:
+        return json.loads(text)
+    except Exception as e:
+        # Fallback: attempt to fix common unescaped quotes in the "explanation" field
+        match = re.search(r'("explanation"\s*:\s*")(.*)("\s*\})', text, flags=re.DOTALL)
+        if match:
+            prefix = match.group(1)
+            content = match.group(2)
+            suffix = match.group(3)
+            # Replace any double quotes inside the content with single quotes
+            fixed_content = content.replace('"', "'")
+            # Remove any unescaped newlines which can also break JSON
+            fixed_content = fixed_content.replace('\n', ' ')
+            fixed_text = text[:match.start()] + prefix + fixed_content + suffix + text[match.end():]
+            try:
+                return json.loads(fixed_text)
+            except Exception:
+                pass
+        raise e
 
 def normalize_answer(s):
     """Lightweight text normalization for VQA answers."""
@@ -276,7 +301,7 @@ def parse_answer_judge_response(response):
         return None, None
 
     try:
-        obj = json.loads(text)
+        obj = robust_json_parse(text)
         verdict = str(obj.get("verdict", "")).upper().strip()
         explanation = str(obj.get("explanation", "")).strip()
 
@@ -299,7 +324,7 @@ def parse_visual_judge_response(response, num_cues):
         return None, None, None
 
     try:
-        obj = json.loads(text)
+        obj = robust_json_parse(text)
         cue_scores = obj.get("cue_scores", [])
         explanation = str(obj.get("explanation", "")).strip()
 
@@ -357,7 +382,7 @@ def parse_reasoning_judge_response(response):
         return None, None, None
 
     try:
-        obj = json.loads(text)
+        obj = robust_json_parse(text)
         compatible = obj.get("compatible", None)
         quality = str(obj.get("quality", "")).upper().strip()
         explanation = str(obj.get("explanation", "")).strip()
