@@ -1,5 +1,9 @@
 #!/bin/bash
 # ============================================================
+# Usage:
+#   nohup bash scripts/run_sam_perturbation.sh > sam_run.log 2>&1 &
+#   tail -f sam_run.log
+# ============================================================
 # SAM-Guided Targeted Perturbation Pipeline Runner
 # ============================================================
 # Infrastructure: 2×A100 (160 GB VRAM)
@@ -11,12 +15,12 @@ set -euo pipefail
 
 # ── Paths ────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BASE_DIR="/home/sriramg/kalashabhayk"
+BASE_DIR="/home/kalashkala"
 
-INPUT_JSONL="${BASE_DIR}/visual-question-answering/clean_vqa_with_visual_cues_tagged.jsonl"
-OUTPUT_JSONL="${BASE_DIR}/visual-question-answering/unanswerable_sam_targeted.jsonl"
-IMAGE_DIR="${BASE_DIR}/visual-question-answering/sam_perturbed_images"
-IMAGE_ROOT="${BASE_DIR}/visual-question-answering/processed_for_verl/images"
+INPUT_JSONL="${BASE_DIR}/Datasets/VQAv2/clean_vqa_with_visual_cues_tagged.jsonl"
+OUTPUT_JSONL="${BASE_DIR}/Datasets/VQAv2/unanswerable_sam_targeted.jsonl"
+IMAGE_DIR="${BASE_DIR}/Datasets/VQAv2/sam_perturbed_images"
+IMAGE_ROOT="${BASE_DIR}/Datasets/VQAv2/processed_for_verl/images"
 ENV_PATH="${BASE_DIR}/Perception-R1/.env"
 
 # ── Config ───────────────────────────────────────────────────

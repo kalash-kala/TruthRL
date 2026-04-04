@@ -217,7 +217,7 @@ def get_masking_plan(
                 ],
                 config=types.GenerateContentConfig(
                     temperature=0.2,
-                    max_output_tokens=1024,
+                    max_output_tokens=4096,
                     response_mime_type="application/json",
                 ),
             )
@@ -592,7 +592,7 @@ def verify_and_get_cues(
                 ],
                 config=types.GenerateContentConfig(
                     temperature=0.0,
-                    max_output_tokens=512,
+                    max_output_tokens=4096,
                     response_mime_type="application/json",
                 ),
             )
