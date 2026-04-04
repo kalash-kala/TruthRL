@@ -916,6 +916,11 @@ def main(args) -> None:
     df = pd.read_parquet(args.input_parquet)
     log.info(f"  {len(df)} total rows in parquet")
 
+    if args.start_index > 0:
+        log.info(f"  Starting from index {args.start_index}")
+        df = df.iloc[args.start_index:]
+
+
     # ── Build dedup set ───────────────────────────────────────────
     already_processed = load_already_processed(args.output_jsonl)
     log.info(f"  {len(already_processed)} images already processed (will skip)")
@@ -935,6 +940,10 @@ def main(args) -> None:
     # ── Process rows ──────────────────────────────────────────────
     with open(args.output_jsonl, "a", encoding="utf-8") as out_f:
         for idx, row in df.iterrows():
+            actual_idx = idx
+            if isinstance(df.index, pd.RangeIndex):
+               pass # the iterrows index is the actual dataframe index
+            
             filename = row["image"]["path"]
             question_id = str(row["question_id"])
 
@@ -943,7 +952,7 @@ def main(args) -> None:
                 skipped_dedup += 1
                 continue
 
-            log.info(f"[{idx + 1}/{len(df)}] Processing question_id={question_id} "
+            log.info(f"[{actual_idx + 1}/{len(df) + args.start_index}] Processing question_id={question_id} "
                      f"image={filename}")
 
             try:
@@ -1036,6 +1045,9 @@ Examples:
     # Target
     parser.add_argument("-n", "--target_count", type=int, default=0,
                         help="Stop after this many unanswerable pairs (0=all). "
+                             "Default: 0")
+    parser.add_argument("-s", "--start_index", type=int, default=0,
+                        help="Start processing from this row index in the parquet file. "
                              "Default: 0")
 
     # Model config
