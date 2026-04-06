@@ -1,0 +1,55 @@
+────────────────────────────────────────────────────────────────────────────────
+  EVALUATION COMPARISON REPORT
+────────────────────────────────────────────────────────────────────────────────
+  Baseline : Perception-R1/results/open_text_eval/eval_gqa_qwen2_5_vl_3b_vanilla_zeroshot_20260327_120944/evaluation_details.jsonl
+  Trained  : TruthRL/results/open_text_eval/eval_gqa_qwen2_5_vl_3b_full_perception_r1_h200_22958_20260331_220629/evaluation_details.jsonl
+  Baseline rows   : 1,000
+  Trained rows    : 1,000
+  Matched rows    : 1,000
+
+────────────────────────────────────────────────────────────────────────────────
+  OVERALL VERDICT TRANSITION MATRIX
+────────────────────────────────────────────────────────────────────────────────
+  Rows show Vanilla verdict → columns show Perception-R1 verdict
+  Each cell: count (% of that baseline-verdict group)
+
+Vanilla ↓          correct          incorrect         no_format         abstention        ROW TOTAL     
+────────────────────────────────────────────────────────────────────────────────
+correct          393 (75.4%)       125 (24.0%)         0 (0.0%)          3 (0.6%)        521 (52.1%)    
+incorrect         46 (18.9%)       198 (81.1%)         0 (0.0%)          0 (0.0%)        244 (24.4%)    
+no_format        105 (47.3%)       101 (45.5%)         2 (0.9%)         14 (6.3%)        222 (22.2%)    
+abstention        5 (38.5%)         5 (38.5%)          0 (0.0%)         3 (23.1%)         13 (1.3%)     
+────────────────────────────────────────────────────────────────────────────────
+COL TOTAL        549 (54.9%)       429 (42.9%)         2 (0.2%)         20 (2.0%)       1000 (100.0%)   
+────────────────────────────────────────────────────────────────────────────────
+  Grand total matched rows: 1000
+
+────────────────────────────────────────────────────────────────────────────────
+  SPECIAL CASE: Baseline model_raw_output == "I don't know"
+────────────────────────────────────────────────────────────────────────────────
+  Total matched rows where baseline output is exactly "I don't know": 60
+
+────────────────────────────────────────────────────────────────────────────────
+  TRANSITION MATRIX FOR "I don't know" ROWS
+────────────────────────────────────────────────────────────────────────────────
+  Rows show Vanilla (IDK) verdict → columns show Perception-R1 verdict
+  Each cell: count (% of that baseline-verdict group)
+
+Vanilla (IDK) ↓     correct          incorrect         no_format         abstention        ROW TOTAL     
+────────────────────────────────────────────────────────────────────────────────
+no_format         20 (33.3%)        24 (40.0%)         2 (3.3%)         14 (23.3%)       60 (100.0%)    
+────────────────────────────────────────────────────────────────────────────────
+COL TOTAL         20 (33.3%)        24 (40.0%)         2 (3.3%)         14 (23.3%)       60 (100.0%)    
+────────────────────────────────────────────────────────────────────────────────
+  Grand total matched rows: 60
+
+················································································
+  Flat summary — what did the trained model predict for the 60 "I don't know" rows?
+    correct        : 20 (33.3%)
+    incorrect      : 24 (40.0%)
+    no_format      : 2 (3.3%)
+    abstention     : 14 (23.3%)
+
+────────────────────────────────────────────────────────────────────────────────
+  END OF REPORT
+────────────────────────────────────────────────────────────────────────────────
