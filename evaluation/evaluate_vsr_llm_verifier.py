@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
 Evaluate Qwen2.5-VL on VSR open-text task using LLM-as-Judge verification.
+(Perception-R1 format: <think>...</think> + <answer>...</answer>)
 
 This script:
   1. Loads a VSR open-text parquet (with open-ended questions and caption ground truths).
   2. Runs inference with Qwen2.5-VL to generate answers.
-  3. Extracts the answer from /box[...]/ format.
-  4. Checks for abstention ("I don't know") → score 0.0.
-  5. Uses an LLM judge (via vLLM/OpenAI-compatible API) to verify whether
+  3. Extracts the answer from <answer>...</answer> tags.
+  4. Extracts reasoning from <think>...</think> tags.
+  5. Checks for abstention ("I don't know") → score 0.0.
+  6. Uses an LLM judge (via vLLM/OpenAI-compatible API) to verify whether
      the model's answer is semantically equivalent to the ground truth caption.
-  6. Logs detailed per-sample results and aggregated metrics.
+  7. Logs detailed per-sample results and aggregated metrics.
 
-Reward structure (same as vqa_reward.py):
+Reward structure:
   +1.0  Correct (LLM judge says equivalent)
    0.0  Abstention ("I don't know")
   -1.0  Incorrect / Hallucination / Missing format
@@ -23,7 +25,7 @@ Usage:
     --dtype auto --port 8000 --gpu-memory-utilization 0.85
 
   # 2. Run evaluation:
-  python3 /home/kalashkala/TruthRL/evaluation/evaluate_vsr_llm_verifier.py \
+  python3 /home/kalashkala/Perception-R1/evaluation/evaluate_vsr_llm_verifier.py \
     --model_path /home/kalashkala/Models/Qwen2.5-VL-3B-Instruct \
     --data_path /home/kalashkala/visual-spatial-reasoning/truthrl-sample/parquet/train_open_text.parquet \
     --judge_api_base http://localhost:8000/v1 \
@@ -55,7 +57,7 @@ VQA_JUDGE_INSTRUCTIONS = """You are an expert evaluator for Visual Question Answ
 
 You will be given:
 1. A visual question that was asked about an image.
-2. The ground truth answer (a spatial relationship caption).
+2. The ground truth answer.
 3. A model-predicted answer.
 
 Your task is to judge whether the predicted answer is semantically equivalent to the ground truth.
@@ -63,9 +65,9 @@ Your task is to judge whether the predicted answer is semantically equivalent to
 Rules:
 - The predicted answer does NOT need to be an exact string match.
 - Minor spelling differences, synonyms, or paraphrases of the same spatial relationship should be treated as CORRECT.
-- Answers that capture the same spatial relationship but use different wording are CORRECT (e.g., "to the left of" vs "on the left side of").
-- Answers that describe a different spatial relationship or are factually wrong should be INCORRECT.
-- If the predicted answer is too vague to confirm the ground truth relationship, mark it INCORRECT.
+- Answers that capture the same meaning as the ground truth but use different wording are CORRECT (e.g., "to the left of" vs "on the left side of" or "The object is a table" vs "table" vs "The furniture is a table").
+- Answers that mean different than the ground truth or are factually wrong should be INCORRECT.
+- If the predicted answer is too vague to confirm the ground truth, mark it INCORRECT.
 
 ### Output a JSON blob with exactly two fields:
 - "verdict": either "CORRECT" or "INCORRECT"
@@ -112,6 +114,25 @@ Question: "Where is the dog relative to the boy?"
 Ground truth: "The dog is to the left of the boy."
 Predicted answer: "The dog is behind the boy."
 Output: {"verdict": "INCORRECT", "explanation": "The prediction says 'behind' but the ground truth says 'to the left of'."}
+
+Example 7 (CORRECT - semantically equivalent)
+Question: "What is the piece of object is to the right of the bed near the window?"
+Ground truth: "The piece of furniture is a Lamp."
+Predicted answer: "Lamp"
+Output: {"verdict": "CORRECT", "explanation": "The predicted answer 'Lamp' describes what is given in the ground truth."}
+
+Example 8 (INCORRECT - semantically equivalent)
+Question: "What is the piece of object is to the right of the bed near the window?"
+Ground truth: "The piece of furniture is a Lamp."
+Predicted answer: "chair"
+Output: {"verdict": "INCORRECT", "explanation": "The predicted answer 'chair' does not describe what is given in the ground truth which is a lamp."}
+
+Example 9 (INCORRECT - completely wrong)
+Question: "What is the piece of object is to the right of the bed near the window?"
+Ground truth: "The piece of furniture is a Lamp."
+Predicted answer: "The furniture to the left of the bed is a chair."
+Output: {"verdict": "INCORRECT", "explanation": "The predicted answer 'The furniture to the left of the bed is a chair' does not describe what is given in the ground truth which is a lamp on the right of the bed near the window."}
+
 """
 
 
@@ -137,6 +158,71 @@ def log_reward_detail(data, run_dir):
             f.write(json.dumps(data) + "\n")
     except Exception as e:
         print(f"Failed to write reward log: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Answer / Reasoning Extraction (Perception-R1 format)
+# ---------------------------------------------------------------------------
+
+def extract_tag_content(text, tag):
+    """
+    Extract content inside an XML-style tag, e.g. <think>...</think>.
+    Returns None if the tag is absent.
+    """
+    if not isinstance(text, str):
+        return None
+
+    match = re.search(
+        rf"<{tag}>\s*(.*?)\s*</{tag}>",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def extract_answer_text(solution_str):
+    """
+    Extract the predicted answer from <answer>...</answer> tags.
+    Returns None if no valid answer tag is found.
+    """
+    return extract_tag_content(solution_str, "answer")
+
+
+def extract_reasoning_text(solution_str, predicted_answer=None):
+    """
+    Extract reasoning from <think>...</think> tags.
+    Falls back to stripping the answer block from the whole response.
+    """
+    reasoning = extract_tag_content(solution_str, "think")
+    if reasoning:
+        return reasoning
+
+    # Fallback: strip the answer block from the whole response
+    cleaned = re.sub(
+        r"<answer>\s*.*?\s*</answer>",
+        "",
+        solution_str,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+    if predicted_answer:
+        cleaned = cleaned.replace(predicted_answer, "")
+
+    cleaned = cleaned.strip()
+    return cleaned
+
+
+def has_valid_format(solution_str):
+    """
+    Format is considered valid if the <answer> tag exists.
+    """
+    return re.search(
+        r"<answer>\s*.*?\s*</answer>",
+        solution_str,
+        flags=re.DOTALL | re.IGNORECASE,
+    ) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -177,34 +263,61 @@ class LLMJudge:
     def parse_response(self, response):
         """Parse JSON verdict from judge response."""
         if response is None:
-            return None, None
+            return None, "No response from API"
 
-        matches = re.findall(r"\{([^}]*)\}", response)
-        text = ""
-        for match in matches:
-            text = "{" + match + "}"
+        # Try to extract the JSON block
+        json_pattern = r'\{[\s\S]*\}'
+        match = re.search(json_pattern, response)
+        text = match.group(0) if match else response
 
+        # Attempt 1: Parse mathematically/strictly
+        import ast
         try:
-            verdict_pattern = r'"verdict"\s*:\s*"([^"]+)"'
-            verdict_match = re.search(verdict_pattern, text)
+            # Often LLMs output keys without quotes or with single quotes
+            # replace true/false/null temporarily to avoid eval errors if needed
+            # but usually it's just verdict and explanation
+            # json.loads is safer, but ast.literal_eval handles single quotes
+            import json
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                # If json fails, try ast.literal_eval
+                try:
+                    data = ast.literal_eval(text)
+                except Exception:
+                    data = None
+
+            if isinstance(data, dict):
+                verdict = str(data.get("verdict", "")).upper().strip()
+                explanation = str(data.get("explanation", ""))
+                if verdict in ("CORRECT", "INCORRECT"):
+                    return verdict, explanation
+        except Exception:
+            pass
+
+        # Attempt 2: Flexible regex parsing
+        try:
+            verdict_pattern = r'["\']?verdict["\']?\s*[:=]\s*["\']?([^"\'\n\}\,]+)["\']?'
+            verdict_match = re.search(verdict_pattern, text, flags=re.IGNORECASE)
+            
+            explanation_pattern = r'["\']?explanation["\']?\s*[:=]\s*["\'](.*?)["\']?(?:\n|\}|$)'
+            explanation_match = re.search(explanation_pattern, text, flags=re.IGNORECASE | re.DOTALL)
+            
             if verdict_match:
                 verdict = verdict_match.group(1).upper().strip()
-            else:
-                return None, None
+                # Remove punctuation
+                verdict = re.sub(r'[^A-Z]', '', verdict)
+                explanation = explanation_match.group(1).strip() if explanation_match else "Extracted via regex, no explanation found."
+                
+                if verdict in ("CORRECT", "INCORRECT"):
+                    return verdict, explanation
+        except Exception:
+            pass
 
-            if verdict not in ("CORRECT", "INCORRECT"):
-                print(f"[LLMJudge] Invalid verdict '{verdict}' in response: {response}")
-                return None, None
-
-            explanation_pattern = r'"explanation"\s*:\s*"([^"]*)"'
-            explanation_match = re.search(explanation_pattern, text)
-            explanation = explanation_match.group(1) if explanation_match else text
-
-            return verdict, explanation
-
-        except Exception as e:
-            print(f"[LLMJudge] Parsing error: {e}, response: {response}")
-            return None, None
+        # If we reach here, parsing failed. We return 'None' but include the raw response
+        # so it gets logged instead of "Judge parse failure"
+        print(f"[LLMJudge] Parsing error or invalid response format. Raw response: {response}")
+        return None, f"Parse failure. Raw output: {response}"
 
     def judge(self, question, ground_truth, predicted_answer):
         """
@@ -232,22 +345,23 @@ class LLMJudge:
 
 
 # ---------------------------------------------------------------------------
-# Scoring Logic (mirrors vqa_reward.py)
+# Scoring Logic
 # ---------------------------------------------------------------------------
 
 def score_prediction(prediction, ground_truth_str, question, judge):
     """
-    Score a single prediction using the TruthRL reward structure.
+    Score a single prediction using the reward structure.
 
     Returns:
-        (score, result_type, verdict, explanation)
+        (score, result_type, verdict, explanation, predicted_answer, reasoning)
     """
-    # 1. Check format — extract answer from /box[...]
-    box_match = re.search(r'/box\[(.*?)\]', prediction)
-    if box_match:
-        predicted_answer = box_match.group(1)
-    else:
-        return -1.0, "no_format", None, "Missing /box[] format"
+    # 1. Check format — extract answer from <answer>...</answer>
+    predicted_answer = extract_answer_text(prediction)
+    if predicted_answer is None:
+        return -1.0, "no_format", None, "Missing <answer></answer> format", None, None
+
+    # Extract reasoning from <think>...</think>
+    reasoning = extract_reasoning_text(prediction, predicted_answer=predicted_answer)
 
     # 2. Check for abstention ("I don't know")
     pred_normalized = normalize_answer(predicted_answer)
@@ -257,18 +371,18 @@ def score_prediction(prediction, ground_truth_str, question, judge):
         "unable to determine", "cannot tell", "can't tell"
     ]
     if any(trigger in pred_normalized for trigger in unknown_triggers):
-        return 0.0, "abstention", "ABSTENTION", "Model chose to abstain"
+        return 0.0, "abstention", "ABSTENTION", "Model chose to abstain", predicted_answer, reasoning
 
     # 3. Call LLM Judge
     verdict, explanation = judge.judge(question, ground_truth_str, predicted_answer)
 
     if verdict == "CORRECT":
-        return 1.0, "correct", verdict, explanation
+        return 1.0, "correct", verdict, explanation, predicted_answer, reasoning
     elif verdict == "INCORRECT":
-        return -1.0, "incorrect", verdict, explanation
+        return -1.0, "incorrect", verdict, explanation, predicted_answer, reasoning
     else:
         # Judge failure — mark as unknown
-        return -1.0, "judge_failed", None, explanation or "Judge parse failure"
+        return -1.0, "judge_failed", None, explanation or "Judge parse failure", predicted_answer, reasoning
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +391,7 @@ def score_prediction(prediction, ground_truth_str, question, judge):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Evaluate Qwen2.5-VL on VSR open-text task with LLM-as-Judge"
+        description="Evaluate Qwen2.5-VL on VSR open-text task with LLM-as-Judge (Perception-R1 format)"
     )
     parser.add_argument(
         "--model_path", type=str, required=True,
@@ -343,12 +457,13 @@ def main():
     os.makedirs(run_dir, exist_ok=True)
 
     print("=" * 60)
-    print("Starting VSR Open-Text Evaluation (LLM Verifier)")
+    print("Starting VSR Open-Text Evaluation (LLM Verifier — Perception-R1 format)")
     print(f"  Model:      {args.model_path}")
     print(f"  Data:       {args.data_path}")
     print(f"  Judge:      {args.judge_model}")
     print(f"  Judge API:  {args.judge_api_base}")
     print(f"  Output:     {run_dir}")
+    print(f"  Format:     <think>...</think> + <answer>...</answer>")
     print("=" * 60)
 
     # ── Initialize LLM Judge ──────────────────────────────────────────────
@@ -483,7 +598,7 @@ def main():
                 prediction = output_text.strip()
 
                 # ── 4. Score using LLM Judge ──────────────────────────
-                score, result_type, verdict, explanation = score_prediction(
+                score, result_type, verdict, explanation, predicted_answer, reasoning = score_prediction(
                     prediction, ground_truth_str, question, judge
                 )
 
@@ -506,7 +621,9 @@ def main():
                     "question": question,
                     "image_location": str(image_path),
                     "ground_truth": ground_truth_str,
-                    "model_answer": prediction,
+                    "model_raw_output": prediction,
+                    "extracted_answer": predicted_answer,
+                    "extracted_reasoning": reasoning[:500] if reasoning else None,
                     "verdict": result_type,
                     "judge_verdict": verdict,
                     "judge_explanation": explanation,
@@ -529,16 +646,14 @@ def main():
     no_format_rate = n_no_format / n_total if n_total > 0 else 0
     judge_fail_rate = n_judge_failed / n_total if n_total > 0 else 0
 
-    # Truthfulness Score: (correct - incorrect) / total
-    truthfulness_score = (n_correct - n_incorrect) / n_total if n_total > 0 else 0
-
-    # Coverage: n_correct / (n_correct + n_incorrect)
-    coverage = n_correct / (n_correct + n_incorrect) if (n_correct + n_incorrect) > 0 else 0
+    # Truthfulness Score: (correct - incorrect - no_format) / total
+    truthfulness_score = (n_correct - n_incorrect - n_no_format) / n_total if n_total > 0 else 0
 
     summary = {
         "model_path": args.model_path,
         "judge_model": args.judge_model,
         "data_path": args.data_path,
+        "response_format": "perception_r1 (<think> + <answer>)",
         "n_samples": n_total,
         "n_correct": n_correct,
         "n_incorrect": n_incorrect,
@@ -551,7 +666,6 @@ def main():
         "no_format_rate": no_format_rate,
         "judge_fail_rate": judge_fail_rate,
         "truthfulness_score": truthfulness_score,
-        "coverage": coverage,
         "timestamp": timestamp,
     }
 
@@ -561,13 +675,13 @@ def main():
 
     print("\n" + "=" * 60)
     print("Evaluation Complete")
+    print(f"  Format:                <think>...</think> + <answer>...</answer>")
     print(f"  Accuracy:              {accuracy:.2%} ({n_correct}/{n_total})")
     print(f"  Truthfulness Score:    {truthfulness_score:.4f}")
     print(f"  Abstention Rate:       {abstention_rate:.2%} ({n_abstention}/{n_total})")
     print(f"  Hallucination Rate:    {hallucination_rate:.2%} ({n_incorrect}/{n_total})")
     print(f"  No Format Rate:        {no_format_rate:.2%} ({n_no_format}/{n_total})")
     print(f"  Judge Failure Rate:    {judge_fail_rate:.2%} ({n_judge_failed}/{n_total})")
-    print(f"  Coverage Accuracy:     {coverage:.2%} (correct / answered)")
     print(f"  Results saved to:      {run_dir}")
     print("=" * 60)
 
